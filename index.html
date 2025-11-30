@@ -152,12 +152,27 @@
       <div class="lg:col-span-8 flex flex-col gap-4">
           <div class="bg-slate-50 p-4 rounded-2xl shadow-inner border-2 border-slate-100">
               <div class='flex justify-between items-center mb-4 flex-wrap gap-2'>
-                  <h3 class="text-xl font-extrabold text-slate-800">Táctica: 3-3-1</h3>
+                  <!-- SELECTOR DE FORMACIÓN -->
+                  <div class="flex items-center gap-2">
+                      <i data-lucide="layout-dashboard" class="w-5 h-5 text-slate-500"></i>
+                      <select id="formation-select" onchange="changeFormation(this.value)" class="bg-white border border-slate-300 text-slate-800 text-lg font-extrabold rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-1.5 shadow-sm">
+                          <option value="3-3-1" selected>3-3-1</option>
+                          <option value="4-2-1">4-2-1</option>
+                          <option value="2-3-2">2-3-2</option>
+                          <option value="3-2-2">3-2-2</option>
+                          <option value="2-4-1">2-4-1</option>
+                          <option value="3-4-0">3-4-0</option>
+                          <option value="4-3-0">4-3-0</option>
+                      </select>
+                  </div>
+
                   <div class="flex gap-2">
                       <button onclick="saveStartingLineup()" class="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 flex items-center gap-1 transition-colors shadow-sm"><i data-lucide="save" class="w-3 h-3"></i> Registrar Alineación</button>
                       <button onclick="clearPitch()" class="px-3 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-bold hover:bg-red-200 flex items-center gap-1 transition-colors"><i data-lucide="trash-2" class="w-3 h-3"></i> Limpiar</button>
                   </div>
               </div>
+              
+              <!-- PIZARRA -->
               <div id="pitch" class="pitch w-full aspect-[4/5] md:aspect-[5/4] rounded-2xl shadow-2xl border-[6px] border-white relative overflow-hidden ring-1 ring-black/10 select-none" onmousedown="startDrag(event)" ontouchstart="startDrag(event)">
                   <div class="absolute inset-5 border-2 border-white/80 pointer-events-none mix-blend-overlay"></div>
                   <div class="absolute top-1/2 left-5 right-5 h-0.5 bg-white/80 pointer-events-none mix-blend-overlay"></div>
@@ -204,13 +219,52 @@
   </section>
 
   <script>
-      // CONFIGURACION Y ESTADO
-      const FORMATION_POSITIONS = [
-          { id: 0, x: 50, y: 90, role: 'GK' },
-          { id: 1, x: 20, y: 75, role: 'DEF' }, { id: 2, x: 50, y: 75, role: 'DEF' }, { id: 3, x: 80, y: 75, role: 'DEF' },
-          { id: 4, x: 20, y: 50, role: 'MED' }, { id: 5, x: 50, y: 50, role: 'MED' }, { id: 6, x: 80, y: 50, role: 'MED' },
-          { id: 7, x: 50, y: 25, role: 'DEL' }
-      ];
+      // === CONFIGURACIÓN DE FORMACIONES ===
+      const FORMATIONS = {
+          '3-3-1': [
+              { id: 0, x: 50, y: 90, role: 'GK' },
+              { id: 1, x: 20, y: 75, role: 'DEF' }, { id: 2, x: 50, y: 75, role: 'DEF' }, { id: 3, x: 80, y: 75, role: 'DEF' },
+              { id: 4, x: 20, y: 50, role: 'MED' }, { id: 5, x: 50, y: 50, role: 'MED' }, { id: 6, x: 80, y: 50, role: 'MED' },
+              { id: 7, x: 50, y: 25, role: 'DEL' }
+          ],
+          '4-2-1': [
+              { id: 0, x: 50, y: 90, role: 'GK' },
+              { id: 1, x: 15, y: 75, role: 'DEF' }, { id: 2, x: 38, y: 75, role: 'DEF' }, { id: 3, x: 62, y: 75, role: 'DEF' }, { id: 6, x: 85, y: 75, role: 'DEF' }, // 4 defensas
+              { id: 4, x: 35, y: 45, role: 'MED' }, { id: 5, x: 65, y: 45, role: 'MED' }, // 2 medios
+              { id: 7, x: 50, y: 20, role: 'DEL' } // 1 punta
+          ],
+          '2-3-2': [
+              { id: 0, x: 50, y: 90, role: 'GK' },
+              { id: 1, x: 30, y: 75, role: 'DEF' }, { id: 3, x: 70, y: 75, role: 'DEF' }, // 2 defensas
+              { id: 2, x: 50, y: 50, role: 'MED' }, { id: 4, x: 20, y: 50, role: 'MED' }, { id: 5, x: 80, y: 50, role: 'MED' }, // 3 medios
+              { id: 6, x: 35, y: 25, role: 'DEL' }, { id: 7, x: 65, y: 25, role: 'DEL' } // 2 puntas
+          ],
+          '3-2-2': [
+              { id: 0, x: 50, y: 90, role: 'GK' },
+              { id: 1, x: 20, y: 75, role: 'DEF' }, { id: 2, x: 50, y: 75, role: 'DEF' }, { id: 3, x: 80, y: 75, role: 'DEF' },
+              { id: 4, x: 35, y: 50, role: 'MED' }, { id: 5, x: 65, y: 50, role: 'MED' },
+              { id: 6, x: 35, y: 25, role: 'DEL' }, { id: 7, x: 65, y: 25, role: 'DEL' }
+          ],
+          '2-4-1': [
+              { id: 0, x: 50, y: 90, role: 'GK' },
+              { id: 1, x: 30, y: 75, role: 'DEF' }, { id: 2, x: 70, y: 75, role: 'DEF' },
+              { id: 3, x: 15, y: 50, role: 'MED' }, { id: 4, x: 38, y: 50, role: 'MED' }, { id: 5, x: 62, y: 50, role: 'MED' }, { id: 6, x: 85, y: 50, role: 'MED' },
+              { id: 7, x: 50, y: 25, role: 'DEL' }
+          ],
+          '3-4-0': [
+              { id: 0, x: 50, y: 90, role: 'GK' },
+              { id: 1, x: 20, y: 75, role: 'DEF' }, { id: 2, x: 50, y: 75, role: 'DEF' }, { id: 3, x: 80, y: 75, role: 'DEF' },
+              { id: 4, x: 15, y: 40, role: 'MED' }, { id: 5, x: 38, y: 40, role: 'MED' }, { id: 6, x: 62, y: 40, role: 'MED' }, { id: 7, x: 85, y: 40, role: 'MED' }
+          ],
+          '4-3-0': [
+              { id: 0, x: 50, y: 90, role: 'GK' },
+              { id: 1, x: 15, y: 75, role: 'DEF' }, { id: 2, x: 38, y: 75, role: 'DEF' }, { id: 3, x: 62, y: 75, role: 'DEF' }, { id: 6, x: 85, y: 75, role: 'DEF' },
+              { id: 4, x: 20, y: 45, role: 'MED' }, { id: 5, x: 50, y: 45, role: 'MED' }, { id: 7, x: 80, y: 45, role: 'MED' }
+          ]
+      };
+
+      let currentFormationKey = '3-3-1';
+      
       let SQUAD = [
           { id: 1, number: "1", name: "Jorge", role: "GK", calledUp: true },
           { id: 2, number: "2", name: "Gabriel", role: "FIELD", calledUp: true },
@@ -229,14 +283,14 @@
           { id: 15, number: "22", name: "Carlos", role: "FIELD", calledUp: true },
           { id: 16, number: "98", name: "Valentino", role: "GK", calledUp: true },
       ].sort((a, b) => parseInt(a.number) - parseInt(b.number));
-      let LINEUP_IDS = Array(FORMATION_POSITIONS.length).fill(null);
+
+      // Array de 8 posiciones (F8)
+      let LINEUP_IDS = Array(8).fill(null);
       let MATCH_STATE = { period: 1, isRunning: false, startTime: null, accumulatedMs: 0, displayMs: 0, intervalId: null };
       let SCORE = { home: 0, away: 0 };
       let MATCH_LOG = [];
       let CUSTOM_POSITIONS = {};
       const DEFAULT_COLORS = { '--team-shirt': '#dc2626', '--team-shorts': '#000000', '--team-socks': '#000000', '--gk-shirt': '#bef264', '--gk-shorts': '#15803d', '--gk-socks': '#bef264' };
-      
-      // LOGO SEGURO POR DEFECTO
       const DEFAULT_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 120'%3E%3Cpath d='M10 10 Q50 0 90 10 L95 80 Q50 120 5 80 Z' fill='%23dc2626' stroke='%23000' stroke-width='2'/%3E%3Ctext x='50' y='60' text-anchor='middle' fill='white' font-weight='bold' font-size='40' font-family='sans-serif'%3EM%3C/text%3E%3C/svg%3E";
 
       // HELPERS
@@ -245,6 +299,15 @@
       const getBench = () => SQUAD.filter(p => p.calledUp && !LINEUP_IDS.includes(p.id));
       const getUncalled = () => SQUAD.filter(p => !p.calledUp);
       const getCssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      const getCurrentFormation = () => FORMATIONS[currentFormationKey];
+
+      // --- LOGICA CAMBIO FORMACIÓN ---
+      const changeFormation = (newFormation) => {
+          currentFormationKey = newFormation;
+          // Reiniciar posiciones manuales para ajustar a la nueva tactica
+          CUSTOM_POSITIONS = {};
+          updateUI();
+      };
 
       // --- LOGICA PRINCIPAL APP ---
       const loadSavedKit = () => {
@@ -285,9 +348,14 @@
           });
           document.getElementById('bench-count').textContent = `${SQUAD.filter(p=>p.calledUp).length} DISP.`;
       };
+      
       const renderPitch = () => {
-          const p = document.getElementById('pitch'); p.querySelectorAll('.player-avatar, .slot-button').forEach(e => e.remove());
-          FORMATION_POSITIONS.forEach((pos, i) => {
+          const p = document.getElementById('pitch'); 
+          p.querySelectorAll('.player-avatar, .slot-button').forEach(e => e.remove());
+          
+          const currentPosData = getCurrentFormation();
+
+          currentPosData.forEach((pos, i) => {
               const pid = LINEUP_IDS[i], pl = getPlayerById(pid);
               if(pl) {
                   const t = document.getElementById('player-avatar-template').content.cloneNode(true), d = t.querySelector('div');
@@ -306,17 +374,22 @@
           });
           lucide.createIcons();
       };
+
       const renderSquadBreakdown = () => {
           const l = (arr,id) => document.getElementById(id).innerHTML = arr.length ? arr.map(p=>`<li><span class="font-bold">${p.number}.</span> ${p.name}</li>`).join('') : '<li class="text-slate-400 italic">Vacío</li>';
           l(getStarters(),'starters-list'); l(getBench(),'bench-list'); l(getUncalled(),'uncalled-list');
           document.getElementById('starters-count').textContent=getStarters().length; document.getElementById('bench-list-count').textContent=getBench().length; document.getElementById('uncalled-count').textContent=getUncalled().length;
       };
+      
       const renderLog = () => {
           const el = document.getElementById('match-log'); el.innerHTML = MATCH_LOG.length ? '' : '<tr><td colspan="3" class="text-center text-slate-400 p-4 italic">El partido comienza...</td></tr>';
           MATCH_LOG.forEach(l => { 
               const tr = document.createElement('tr'); tr.className='log-item hover:bg-slate-50 group border-b border-slate-50 last:border-0';
               let c='',h='', btn=''; 
-              if(l.type=='goal'){ c='text-green-700'; h=`<span class="font-bold flex items-center gap-1">⚽ ${l.d.scorer}</span>`; }
+              if(l.type=='goal'){ 
+                  const assistText = l.d.assist ? `<span class="text-[10px] text-slate-500 font-normal ml-1">🅰️ ${l.d.assist}</span>` : '';
+                  c='text-green-700'; h=`<span class="font-bold flex items-center gap-1 flex-wrap">⚽ ${l.d.scorer} ${assistText}</span>`; 
+              }
               else if(l.type.includes('goal')){ c='text-red-600'; h=`<span class="font-bold">⚠️ ${l.text}</span>`; }
               else if(l.type=='sub'){ c='text-blue-700'; h=`<span class="flex items-center gap-1"><i data-lucide="refresh-cw" class="w-3 h-3"></i> ${l.d.in} <span class="text-slate-400 text-[10px]">x</span> ${l.d.out}</span>`; }
               else if(l.type=='lineup'){ c='text-slate-700'; h=`<div class="bg-slate-100 p-2 rounded-lg text-[10px] space-y-1 my-1 border border-slate-200"><div class="font-bold text-indigo-600 border-b border-slate-200 pb-1 mb-1 uppercase tracking-wider">${l.text}</div>${l.d.html}</div>`; }
@@ -328,15 +401,25 @@
           document.getElementById('score-text').textContent = `${SCORE.home} - ${SCORE.away}`;
           lucide.createIcons();
       };
+      
       const updateUI = () => { renderSquadList(); renderPitch(); renderSquadBreakdown(); renderLog(); };
+      
       const saveStartingLineup = () => {
           const activePlayers = getStarters();
           if (activePlayers.length === 0) { alert("No hay jugadores en el campo para guardar la alineación."); return; }
           const lineupData = { GK: [], DEF: [], MED: [], DEL: [] };
-          LINEUP_IDS.forEach((pid, index) => { if (pid) lineupData[FORMATION_POSITIONS[index].role].push(getPlayerById(pid).name); });
+          const currentPosData = getCurrentFormation();
+          
+          LINEUP_IDS.forEach((pid, index) => { 
+              if (pid) {
+                  // Obtener rol dinámico según la formación actual
+                  const role = currentPosData[index].role;
+                  lineupData[role].push(getPlayerById(pid).name); 
+              }
+          });
           const formatLine = (label, names) => names.length ? `<div class='flex gap-1'><span class='font-bold text-slate-500 w-14'>${label}:</span> <span class='flex-1'>${names.join(', ')}</span></div>` : '';
           const htmlContent = [formatLine('Portero', lineupData.GK),formatLine('Defensas', lineupData.DEF),formatLine('Medios', lineupData.MED),formatLine('Delantero', lineupData.DEL)].join('');
-          addLog('lineup', `Alineación Inicial (${MATCH_STATE.period}ª Parte)`, { html: htmlContent });
+          addLog('lineup', `Alineación Inicial (${MATCH_STATE.period}ª Parte) [${currentFormationKey}]`, { html: htmlContent });
       };
       
       // LOGICA PARTIDO Y UTILS
@@ -354,11 +437,138 @@
       const deleteLog = (id) => { if(!confirm("¿Eliminar este evento?")) return; const l = MATCH_LOG.find(x => x.id === id); if(l){ if(l.type=='goal') SCORE.home--; if(l.type.includes('goal') && l.type!='goal') SCORE.away--; MATCH_LOG = MATCH_LOG.filter(x => x.id !== id); document.getElementById('score-home').textContent=SCORE.home; document.getElementById('score-away').textContent=SCORE.away; renderLog(); } };
       const toggleCalledUp = (id) => { const p = getPlayerById(id); p.calledUp = !p.calledUp; if(!p.calledUp){ const i = LINEUP_IDS.indexOf(id); if(i > -1) LINEUP_IDS[i] = null; } updateUI(); };
       const clearPitch = () => { if(confirm("¿Limpiar la pizarra táctica?")) { LINEUP_IDS.fill(null); CUSTOM_POSITIONS={}; updateUI(); } };
-      const showBenchSelector = (idx) => { const b = getBench(); const role = FORMATION_POSITIONS[idx].role; const v = b.filter(p => role=='GK' ? p.role=='GK' : p.role=='FIELD'); if(!v.length) return showCustomModal('Info', 'Sin jugadores disponibles para esta posición'); const m = document.getElementById('modal-content'); m.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="font-bold text-lg">Elegir ${role}</h3><button onclick="closeModal()" class="text-slate-400"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="space-y-2 max-h-60 overflow-y-auto pr-1">${v.map(p => `<div onclick="assignPlayer(${p.id},${idx})" class="p-3 border rounded-xl cursor-pointer hover:bg-blue-50 flex gap-3 font-bold items-center transition-colors"><span class="bg-slate-800 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-sm">${p.number}</span><span class="text-slate-700">${p.name}</span></div>`).join('')}</div>`; document.getElementById('action-modal').classList.remove('hidden'); document.getElementById('action-modal').classList.add('flex'); lucide.createIcons(); };
+      
+      const showBenchSelector = (idx) => { 
+          const b = getBench(); 
+          // Usar la formación actual para determinar el rol del slot
+          const currentForm = getCurrentFormation();
+          const role = currentForm[idx].role; 
+          const v = b.filter(p => role=='GK' ? p.role=='GK' : p.role=='FIELD'); 
+          if(!v.length) return showCustomModal('Info', 'Sin jugadores disponibles para esta posición'); 
+          const m = document.getElementById('modal-content'); 
+          m.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="font-bold text-lg">Elegir ${role}</h3><button onclick="closeModal()" class="text-slate-400"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="space-y-2 max-h-60 overflow-y-auto pr-1">${v.map(p => `<div onclick="assignPlayer(${p.id},${idx})" class="p-3 border rounded-xl cursor-pointer hover:bg-blue-50 flex gap-3 font-bold items-center transition-colors"><span class="bg-slate-800 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-sm">${p.number}</span><span class="text-slate-700">${p.name}</span></div>`).join('')}</div>`; 
+          document.getElementById('action-modal').classList.remove('hidden'); document.getElementById('action-modal').classList.add('flex'); lucide.createIcons(); 
+      };
+      
       const assignPlayer = (pid, idx) => { const prev = LINEUP_IDS.indexOf(pid); if(prev > -1) LINEUP_IDS[prev] = null; LINEUP_IDS[idx] = pid; closeModal(); updateUI(); };
       const removePlayerFromPitch = (pid) => { const i = LINEUP_IDS.indexOf(parseInt(pid)); if(i > -1) LINEUP_IDS[i] = null; updateUI(); };
-      const showGoalModal = () => { const s = getStarters(); if(!s.length) return showCustomModal('Error', 'No hay jugadores en el campo'); const f = s.filter(p => p.role == 'FIELD'); const o = f.map(p => `<option value="${p.id}">${p.number} - ${p.name}</option>`).join(''); document.getElementById('modal-content').innerHTML = `<h3 class="font-bold text-lg mb-4 flex items-center gap-2"><i data-lucide="trophy" class="w-5 h-5 text-yellow-500"></i> Registrar Gol</h3><div class="mb-4 bg-slate-50 p-3 rounded-lg border"><label class="flex items-center gap-2 cursor-pointer font-semibold text-sm"><input type="checkbox" id="og_check" class="w-4 h-4 text-red-600 rounded focus:ring-red-500"> Autogol (Gol en contra)</label></div><div class="mb-6"><label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Goleador</label><select id="sc" class="w-full border p-3 rounded-lg bg-white font-medium focus:ring-2 focus:ring-green-500 outline-none"><option value="">Seleccionar Jugador...</option>${o}</select></div><div class="grid grid-cols-2 gap-3"><button onclick="closeModal()" class="text-slate-500 font-bold py-3 hover:bg-slate-100 rounded-lg">Cancelar</button><button onclick="confirmGoal()" class="bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold shadow-lg shadow-green-200">Guardar Gol</button></div>`; document.getElementById('action-modal').classList.remove('hidden'); document.getElementById('action-modal').classList.add('flex'); lucide.createIcons(); };
-      const confirmGoal = () => { const sid = document.getElementById('sc').value; const og = document.getElementById('og_check').checked; if(!sid) return; const s = getPlayerById(sid); if(og) addLog('own_goal', `Autogol ${s.name}`, {scorer:s.name}); else addLog('goal', 'Gol', {scorer:s.name}); closeModal(); };
+      
+      // NUEVO HELPER PARA EL TOGGLE
+      window.toggleGoalInputs = () => {
+          const ogRival = document.getElementById('rival_og_check').checked;
+          const ogOur = document.getElementById('og_check').checked;
+          
+          const sc = document.getElementById('sc');
+          const as = document.getElementById('as');
+          
+          // Si es autogol del rival (gol para nosotros) O autogol nuestro (gol para rival)
+          // No tiene sentido seleccionar goleador nuestro para el gol
+          const disable = ogRival || ogOur;
+          
+          sc.disabled = disable;
+          as.disabled = disable;
+          
+          if(disable) {
+              sc.classList.add('opacity-50', 'bg-slate-100');
+              as.classList.add('opacity-50', 'bg-slate-100');
+          } else {
+              sc.classList.remove('opacity-50', 'bg-slate-100');
+              as.classList.remove('opacity-50', 'bg-slate-100');
+          }
+
+          // Mutuamente excluyentes
+          if (ogRival) document.getElementById('og_check').checked = false;
+          if (ogOur) document.getElementById('rival_og_check').checked = false;
+      };
+
+      const showGoalModal = () => { 
+          const s = getStarters(); 
+          if(!s.length) return showCustomModal('Error', 'No hay jugadores en el campo'); 
+          
+          const options = s.map(p => `<option value="${p.id}">${p.number} - ${p.name}</option>`).join(''); 
+          
+          document.getElementById('modal-content').innerHTML = `
+            <h3 class="font-bold text-lg mb-4 flex items-center gap-2"><i data-lucide="trophy" class="w-5 h-5 text-yellow-500"></i> Registrar Gol</h3>
+            
+            <div class="space-y-2 mb-4">
+                <!-- Checkbox 1: Autogol nuestro (Malo) -->
+                <div class="bg-red-50 p-2 rounded-lg border border-red-100">
+                   <label class="flex items-center gap-2 cursor-pointer font-bold text-xs text-red-700">
+                       <input type="checkbox" id="og_check" onchange="toggleGoalInputs()"> 
+                       AUTOGOL NUESTRO (Suma al rival)
+                   </label>
+                </div>
+                <!-- Checkbox 2: Autogol rival (Bueno) -->
+                <div class="bg-green-50 p-2 rounded-lg border border-green-100">
+                   <label class="flex items-center gap-2 cursor-pointer font-bold text-xs text-green-700">
+                       <input type="checkbox" id="rival_og_check" onchange="toggleGoalInputs()"> 
+                       AUTOGOL DEL RIVAL (Suma a nosotros)
+                   </label>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Goleador</label>
+                <select id="sc" class="w-full border p-3 rounded-lg bg-white font-medium focus:ring-2 focus:ring-green-500 outline-none">
+                    <option value="">Seleccionar Jugador...</option>
+                    ${options}
+                </select>
+            </div>
+
+            <div class="mb-6">
+                <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Asistencia (Opcional)</label>
+                <select id="as" class="w-full border p-3 rounded-lg bg-white font-medium focus:ring-2 focus:ring-blue-500 outline-none">
+                    <option value="">Sin asistencia / Acción individual</option>
+                    ${options}
+                </select>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="closeModal()" class="text-slate-500 font-bold py-3 hover:bg-slate-100 rounded-lg">Cancelar</button>
+                <button onclick="confirmGoal()" class="bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold shadow-lg shadow-green-200">Guardar Gol</button>
+            </div>`; 
+          
+          document.getElementById('action-modal').classList.remove('hidden'); 
+          document.getElementById('action-modal').classList.add('flex'); 
+          lucide.createIcons();
+      };
+
+      const confirmGoal = () => { 
+          const sid = document.getElementById('sc').value; 
+          const aid = document.getElementById('as').value;
+          const og_our = document.getElementById('og_check').checked; 
+          const og_rival = document.getElementById('rival_og_check').checked;
+          
+          // Caso 1: Autogol del Rival (Suma a nosotros, sin jugador)
+          if (og_rival) {
+              addLog('goal', 'Gol', { scorer: 'Autogol Rival', assist: null });
+              closeModal();
+              return;
+          }
+
+          // Caso 2: Autogol Nuestro (Suma al rival, necesita jugador culpable? No es estricto en logica previa)
+          if (og_our) {
+               // Si seleccionó jugador, lo ponemos, sino genérico
+               let culpritName = "Jugador";
+               if(sid) { const s = getPlayerById(sid); culpritName = s.name; }
+               addLog('own_goal', `Autogol ${culpritName}`, {scorer: culpritName});
+               closeModal();
+               return;
+          }
+
+          // Caso 3: Gol Normal
+          if(!sid) return; 
+          
+          const s = getPlayerById(sid); 
+          const a = aid ? getPlayerById(aid) : null;
+
+          const data = { scorer: s.name };
+          if (a) data.assist = a.name;
+          addLog('goal', 'Gol', data); 
+          
+          closeModal(); 
+      };
+
       const showSubModal = () => { const s = getStarters(), b = getBench(); if(!s.length || !b.length) return showCustomModal('Info', 'Se necesitan titulares y suplentes para realizar un cambio.'); const so = s.map(p => `<option value="${p.id}">${p.number} ${p.name}</option>`).join(''); const bo = b.map(p => `<option value="${p.id}">${p.number} ${p.name}</option>`).join(''); document.getElementById('modal-content').innerHTML = `<h3 class="font-bold text-lg mb-4 flex items-center gap-2"><i data-lucide="replace" class="w-5 h-5 text-blue-500"></i> Realizar Cambio</h3><div class="grid grid-cols-2 gap-4 mb-6"><div class="bg-red-50 p-2 rounded-lg border border-red-100"><label class="text-xs font-bold text-red-500 block mb-1 uppercase">Sale</label><select id="sout" class="w-full border-0 bg-transparent font-bold text-sm focus:ring-0 p-0 text-slate-700">${so}</select></div><div class="bg-green-50 p-2 rounded-lg border border-green-100"><label class="text-xs font-bold text-green-600 block mb-1 uppercase">Entra</label><select id="sin" class="w-full border-0 bg-transparent font-bold text-sm focus:ring-0 p-0 text-slate-700">${bo}</select></div></div><div class="grid grid-cols-2 gap-3"><button onclick="closeModal()" class="text-slate-500 font-bold py-3 hover:bg-slate-100 rounded-lg">Cancelar</button><button onclick="confirmSub()" class="bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold shadow-lg shadow-blue-200">Confirmar</button></div>`; document.getElementById('action-modal').classList.remove('hidden'); document.getElementById('action-modal').classList.add('flex'); lucide.createIcons(); };
       const confirmSub = () => { const oid = parseInt(document.getElementById('sout').value); const iid = parseInt(document.getElementById('sin').value); const idx = LINEUP_IDS.indexOf(oid); if(idx > -1){ LINEUP_IDS[idx] = iid; if(CUSTOM_POSITIONS[oid]){ CUSTOM_POSITIONS[iid] = CUSTOM_POSITIONS[oid]; delete CUSTOM_POSITIONS[oid]; } const po = getPlayerById(oid), pi = getPlayerById(iid); addLog('sub', 'Cambio', {out:po.name, in:pi.name}); closeModal(); updateUI(); } };
       const showKitConfig = () => { document.getElementById('modal-content').innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="font-bold text-lg flex items-center gap-2"><i data-lucide="palette" class="w-5 h-5 text-blue-500"></i> Equipaciones</h3><button onclick="closeModal()" class="text-slate-400"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="space-y-6"><div><h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Jugadores</h4><div class="grid grid-cols-3 gap-3"><div class="color-picker-wrapper bg-slate-100"><input type="color" value="${getCssVar('--team-shirt')}" oninput="updateKitColor('--team-shirt', this.value)"><div class="color-label">Camiseta</div></div><div class="color-picker-wrapper bg-slate-100"><input type="color" value="${getCssVar('--team-shorts')}" oninput="updateKitColor('--team-shorts', this.value)"><div class="color-label">Pantalón</div></div><div class="color-picker-wrapper bg-slate-100"><input type="color" value="${getCssVar('--team-socks')}" oninput="updateKitColor('--team-socks', this.value)"><div class="color-label">Medias</div></div></div></div><div><h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Porteros</h4><div class="grid grid-cols-3 gap-3"><div class="color-picker-wrapper bg-slate-100"><input type="color" value="${getCssVar('--gk-shirt')}" oninput="updateKitColor('--gk-shirt', this.value)"><div class="color-label">Camiseta</div></div><div class="color-picker-wrapper bg-slate-100"><input type="color" value="${getCssVar('--gk-shorts')}" oninput="updateKitColor('--gk-shorts', this.value)"><div class="color-label">Pantalón</div></div><div class="color-picker-wrapper bg-slate-100"><input type="color" value="${getCssVar('--gk-socks')}" oninput="updateKitColor('--gk-socks', this.value)"><div class="color-label">Medias</div></div></div></div></div><div class="mt-6 pt-4 border-t flex justify-end"><button onclick="resetKitColors()" class="text-xs text-red-500 font-bold hover:underline">Restablecer colores originales</button></div>`; document.getElementById('action-modal').classList.remove('hidden'); document.getElementById('action-modal').classList.add('flex'); lucide.createIcons(); };
