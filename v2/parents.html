@@ -78,15 +78,18 @@
 
     <main class="max-w-6xl mx-auto p-4 mt-6">
         <!-- Tabs Navigation -->
-        <div class="flex space-x-2 bg-slate-200/60 p-1 rounded-xl mb-6 max-w-md mx-auto shadow-inner">
-            <button onclick="MoncofaParents.UI.switchTab('standings')" id="tab-btn-standings" class="tab-btn flex-1 py-2.5 text-center text-xs font-black uppercase tracking-wider rounded-lg transition-all duration-300 bg-white text-slate-800 shadow-sm">
+        <div class="flex space-x-1.5 bg-slate-200/60 p-1 rounded-xl mb-6 max-w-lg mx-auto shadow-inner">
+            <button onclick="MoncofaParents.UI.switchTab('standings')" id="tab-btn-standings" class="tab-btn flex-1 py-2 text-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-lg transition-all duration-300 bg-white text-slate-800 shadow-sm">
                 Clasificación
             </button>
-            <button onclick="MoncofaParents.UI.switchTab('team-stats')" id="tab-btn-team-stats" class="tab-btn flex-1 py-2.5 text-center text-xs font-black uppercase tracking-wider rounded-lg transition-all duration-300 text-slate-500 hover:text-slate-800">
-                Equipo (Grupal)
+            <button onclick="MoncofaParents.UI.switchTab('team-stats')" id="tab-btn-team-stats" class="tab-btn flex-1 py-2 text-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-lg transition-all duration-300 text-slate-500 hover:text-slate-800">
+                Equipo
             </button>
-            <button onclick="MoncofaParents.UI.switchTab('player-stats')" id="tab-btn-player-stats" class="tab-btn flex-1 py-2.5 text-center text-xs font-black uppercase tracking-wider rounded-lg transition-all duration-300 text-slate-500 hover:text-slate-800">
+            <button onclick="MoncofaParents.UI.switchTab('player-stats')" id="tab-btn-player-stats" class="tab-btn flex-1 py-2 text-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-lg transition-all duration-300 text-slate-500 hover:text-slate-800">
                 Jugadores
+            </button>
+            <button onclick="MoncofaParents.UI.switchTab('rankings')" id="tab-btn-rankings" class="tab-btn flex-1 py-2 text-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-lg transition-all duration-300 text-slate-500 hover:text-slate-800">
+                Rankings
             </button>
         </div>
 
@@ -219,8 +222,26 @@
             </div>
         </section>
 
-        <!-- TAB: PLAYER STATS (Jugadores) -->
+        <!-- TAB: JUGADORES (Listado y detalles) -->
         <section id="tab-content-player-stats" class="tab-content hidden">
+            <div class="max-w-4xl mx-auto">
+                <div class="bg-white border border-slate-200 rounded-3xl shadow-xl overflow-hidden p-6">
+                    <div class="border-b pb-3 mb-6">
+                        <h3 class="font-black text-lg text-slate-800 uppercase flex items-center gap-2">
+                            <i data-lucide="users" class="w-5 h-5 text-emerald-500"></i> Plantilla del Equipo
+                        </h3>
+                        <p class="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">Pulsa sobre cualquier jugador para ver sus estadísticas individuales e historial.</p>
+                    </div>
+                    
+                    <div id="players-grid-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB: RANKINGS (Clasificaciones individuales) -->
+        <section id="tab-content-rankings" class="tab-content hidden">
             <!-- Switch sub-tabs (Goles / Asistencias / Minutos) -->
             <div class="flex justify-center gap-2 mb-6">
                 <button onclick="MoncofaParents.UI.switchPlayerStatTab('goals')" id="stat-subtab-goals" class="stat-subtab px-4 py-2 rounded-xl text-xs font-bold transition-all bg-emerald-500 text-white shadow-sm">
@@ -269,6 +290,85 @@
     <footer class="mt-12 py-8 text-center text-xs font-bold text-slate-400 uppercase tracking-widest border-t border-slate-200/50">
         <p>© 2026 C.F. Platges de Moncofa</p>
     </footer>
+
+    <!-- Player Details Modal -->
+    <div id="player-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden border border-slate-100 transform scale-95 transition-transform duration-300 flex flex-col max-h-[85vh]">
+            <!-- Modal Header -->
+            <div id="player-modal-header" class="relative p-6 bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center gap-4">
+                <button onclick="MoncofaParents.UI.closePlayerModal()" class="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-full transition-all">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+                <div id="player-modal-avatar-container" class="relative flex-shrink-0">
+                    <img id="player-modal-photo" src="" class="w-20 h-20 rounded-full object-cover border-2 border-white/50 shadow-md" onerror="this.src='https://ui-avatars.com/api/?name=Jugador&background=random'" />
+                    <span id="player-modal-number" class="absolute -bottom-1 -right-1 bg-amber-500 text-white font-black text-xs px-2 py-0.5 rounded-full border border-white">#--</span>
+                </div>
+                <div>
+                    <h3 id="player-modal-name" class="font-black text-xl uppercase tracking-tight">Nombre</h3>
+                    <p id="player-modal-role" class="text-xs font-bold text-emerald-100 uppercase tracking-widest mt-0.5">Demarcación</p>
+                </div>
+            </div>
+            <!-- Modal Body -->
+            <div id="player-modal-body" class="p-6 overflow-y-auto space-y-6 hide-scrollbar flex-1 bg-slate-50/50">
+                <!-- Stat Summary -->
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm text-center">
+                        <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Goles</span>
+                        <span id="player-modal-goals" class="font-black text-xl text-emerald-600">0</span>
+                    </div>
+                    <div class="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm text-center">
+                        <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Asistencias</span>
+                        <span id="player-modal-assists" class="font-black text-xl text-blue-600">0</span>
+                    </div>
+                    <div class="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm text-center">
+                        <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Minutos</span>
+                        <span id="player-modal-minutes" class="font-black text-xl text-slate-800">0</span>
+                    </div>
+                </div>
+
+                <!-- Detailed Info -->
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-3">
+                    <h4 class="font-black text-xs text-slate-400 uppercase tracking-wider border-b pb-2">Estadísticas de Juego</h4>
+                    <div class="space-y-2 text-xs font-bold">
+                        <div class="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
+                            <span>Partidos Convocados</span>
+                            <span id="player-modal-called" class="text-slate-800">0</span>
+                        </div>
+                        <div class="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
+                            <span>Partidos Jugados</span>
+                            <span id="player-modal-played" class="text-slate-800">0</span>
+                        </div>
+                        <div class="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
+                            <span>Titularidades</span>
+                            <span id="player-modal-starters" class="text-slate-800">0</span>
+                        </div>
+                        <div class="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
+                            <span>Suplencias</span>
+                            <span id="player-modal-subs" class="text-slate-800">0</span>
+                        </div>
+                        <div class="flex justify-between items-center py-1 text-slate-600">
+                            <span>Promedio de Minutos</span>
+                            <span id="player-modal-avg-mins" class="text-slate-800">0 min</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History -->
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+                    <h4 class="font-black text-xs text-slate-400 uppercase tracking-wider border-b pb-2 mb-3">Historial de Partidos</h4>
+                    <div id="player-modal-matchday-history" class="space-y-2">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+            <!-- Footer -->
+            <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                <button onclick="MoncofaParents.UI.closePlayerModal()" class="bg-slate-800 hover:bg-slate-700 text-white font-bold py-2 px-6 rounded-xl transition-all text-xs uppercase tracking-wider">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
 
     <script src="js/parents-ui.js"></script>
 </body>

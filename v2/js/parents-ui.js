@@ -707,6 +707,165 @@ MoncofaParents.UI = {
                 }).join('');
             }
         }
+
+        // 4. Render Plantilla (Players Grid List)
+        const playersGridList = document.getElementById('players-grid-list');
+        if (playersGridList) {
+            const sortedByNumber = [...playerList].sort((a, b) => (a.number || 99) - (b.number || 99) || a.name.localeCompare(b.name));
+            if (sortedByNumber.length === 0) {
+                playersGridList.innerHTML = `<p class="text-sm text-slate-400 font-bold text-center col-span-3 py-4">No hay jugadores registrados en esta temporada.</p>`;
+            } else {
+                playersGridList.innerHTML = sortedByNumber.map(p => {
+                    const photo = p.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random`;
+                    return `
+                        <div onclick="MoncofaParents.UI.openPlayerDetails(${p.id})" class="flex items-center gap-4 p-4 bg-slate-50 hover:bg-emerald-50/50 border border-slate-100 hover:border-emerald-200 rounded-2xl cursor-pointer transition-all duration-300 hover:shadow-md group">
+                            <div class="relative w-12 h-12 flex-shrink-0">
+                                <img src="${photo}" class="w-full h-full rounded-full object-cover border border-slate-200" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random'">
+                                <span class="absolute -bottom-1 -right-1 bg-slate-800 group-hover:bg-emerald-500 text-white font-black text-[9px] px-1.5 py-0.5 rounded-full border border-white transition-colors">
+                                    #${p.number || '--'}
+                                </span>
+                            </div>
+                            <div class="truncate flex-1 min-w-0">
+                                <span class="font-bold text-slate-800 text-sm block leading-tight group-hover:text-emerald-950 truncate">${p.name}</span>
+                                <span class="text-[9px] font-black text-slate-400 group-hover:text-emerald-700 uppercase tracking-widest block mt-0.5">${p.role || 'Jugador'}</span>
+                            </div>
+                            <div class="text-slate-300 group-hover:text-emerald-400 transition-colors ml-2">
+                                <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+    },
+
+    openPlayerDetails(playerId) {
+        const player = this.players.find(p => p.id === parseInt(playerId));
+        if (!player) return;
+
+        // Stats calculations
+        const stats = this.playerStats.filter(s => s.player_id === player.id);
+        
+        let goals = 0;
+        let assists = 0;
+        let minutes = 0;
+        let played = 0;
+        let starters = 0;
+        let subs = 0;
+        let called = stats.length;
+
+        stats.forEach(s => {
+            goals += s.goals || 0;
+            assists += s.assists || 0;
+            minutes += s.minutes_played || 0;
+            if (s.minutes_played > 0) {
+                played++;
+                if (s.is_starter) {
+                    starters++;
+                } else {
+                    subs++;
+                }
+            }
+        });
+
+        const avgMins = played > 0 ? Math.round(minutes / played) : 0;
+
+        // Populate modal data
+        document.getElementById('player-modal-name').textContent = player.name;
+        document.getElementById('player-modal-role').textContent = player.role || 'Jugador';
+        document.getElementById('player-modal-number').textContent = `#${player.number || '--'}`;
+        
+        const photoEl = document.getElementById('player-modal-photo');
+        if (photoEl) {
+            photoEl.src = player.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=random`;
+        }
+
+        document.getElementById('player-modal-goals').textContent = goals;
+        document.getElementById('player-modal-assists').textContent = assists;
+        document.getElementById('player-modal-minutes').textContent = minutes;
+        
+        document.getElementById('player-modal-called').textContent = called;
+        document.getElementById('player-modal-played').textContent = played;
+        document.getElementById('player-modal-starters').textContent = starters;
+        document.getElementById('player-modal-subs').textContent = subs;
+        document.getElementById('player-modal-avg-mins').textContent = `${avgMins} min`;
+
+        // Match-by-match history
+        const historyContainer = document.getElementById('player-modal-matchday-history');
+        if (historyContainer) {
+            if (stats.length === 0) {
+                historyContainer.innerHTML = `<p class="text-xs text-slate-400 italic text-center py-2">No se registra participación en partidos para esta temporada.</p>`;
+            } else {
+                // We need to match each stat to the match information
+                // Let's sort stats by matchday descending
+                const enrichedStats = stats.map(s => {
+                    const match = this.matches.find(m => m.id === s.match_id);
+                    return {
+                        ...s,
+                        matchday: match ? match.matchday : 0,
+                        rivalName: match ? match.rival_name : 'Rival desconocido',
+                        date: match ? match.date : '',
+                        isHome: match ? match.is_home : false,
+                        ourScore: match ? (match.is_home ? match.home_score : match.away_score) : 0,
+                        rivalScore: match ? (match.is_home ? match.away_score : match.home_score) : 0
+                    };
+                }).sort((a, b) => b.matchday - a.matchday);
+
+                historyContainer.innerHTML = enrichedStats.map(s => {
+                    const statusText = s.minutes_played > 0 
+                        ? (s.is_starter ? 'Titular' : 'Suplente')
+                        : (s.absence_reason ? `Ausente: ${s.absence_reason}` : 'No convocado');
+                    const statusColor = s.minutes_played > 0 
+                        ? 'bg-slate-100 text-slate-700' 
+                        : 'bg-red-50 text-red-600 border border-red-100';
+
+                    let statsSummary = [];
+                    if (s.minutes_played > 0) {
+                        statsSummary.push(`${s.minutes_played} min`);
+                        if (s.goals > 0) statsSummary.push(`⚽ ${s.goals} G`);
+                        if (s.assists > 0) statsSummary.push(`👟 ${s.assists} A`);
+                    }
+
+                    return `
+                        <div class="flex flex-col gap-1 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                            <div class="flex items-center justify-between">
+                                <span class="font-black text-slate-700 text-xs">Jornada ${s.matchday} vs ${s.rivalName}</span>
+                                <span class="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full ${statusColor}">${statusText}</span>
+                            </div>
+                            ${statsSummary.length > 0 ? `
+                                <div class="text-[10px] text-slate-500 font-bold flex gap-2 mt-1">
+                                    ${statsSummary.map(item => `<span class="bg-white px-2 py-0.5 rounded border border-slate-100">${item}</span>`).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        // Show modal
+        const modal = document.getElementById('player-modal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            // Small timeout for animations
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.querySelector('.transform').classList.remove('scale-95');
+            }, 10);
+        }
+
+        lucide.createIcons();
+    },
+
+    closePlayerModal() {
+        const modal = document.getElementById('player-modal');
+        if (modal) {
+            modal.classList.add('opacity-0');
+            modal.querySelector('.transform').classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
     }
 };
 
