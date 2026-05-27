@@ -565,7 +565,7 @@ MoncofaApp.LeagueUI = {
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                const b64 = canvas.toDataURL('image/jpeg', 0.8);
+                const b64 = canvas.toDataURL('image/png');
                 await MoncofaApp.DB.updatePlayerPhoto(playerId, b64);
                 const imgEl = document.getElementById(`player-photo-${playerId}`);
                 if (imgEl) imgEl.src = b64;

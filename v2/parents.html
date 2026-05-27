@@ -251,7 +251,7 @@
                     Asistentes
                 </button>
                 <button onclick="MoncofaParents.UI.switchPlayerStatTab('minutes')" id="stat-subtab-minutes" class="stat-subtab px-4 py-2 rounded-xl text-xs font-bold transition-all bg-white text-slate-600 border border-slate-200 hover:bg-slate-50">
-                    Minutos Jugados
+                    Participaciones
                 </button>
             </div>
 
@@ -275,10 +275,10 @@
                 </div>
             </div>
 
-            <!-- Subtab Content: MINUTES -->
+            <!-- Subtab Content: MINUTES (Reused for Participations) -->
             <div id="player-stat-content-minutes" class="player-stat-tab-content hidden bg-white border border-slate-200 rounded-2xl shadow-sm p-4 md:p-6">
                 <h3 class="font-black text-lg text-slate-800 uppercase border-b pb-3 mb-4 flex items-center gap-2">
-                    <i data-lucide="clock" class="w-5 h-5 text-indigo-500"></i> Minutos de Juego acumulados
+                    <i data-lucide="award" class="w-5 h-5 text-indigo-500"></i> Participaciones en partidos
                 </h3>
                 <div id="minutes-ranking-list" class="flex flex-col gap-3 max-w-2xl mx-auto">
                     <!-- Populated dynamically -->
@@ -300,7 +300,7 @@
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
                 <div id="player-modal-avatar-container" class="relative flex-shrink-0">
-                    <img id="player-modal-photo" src="" class="w-20 h-20 rounded-full object-cover border-2 border-white/50 shadow-md" onerror="this.src='https://ui-avatars.com/api/?name=Jugador&background=random'" />
+                    <img id="player-modal-photo" src="" class="w-28 h-28 rounded-full object-cover border-2 border-white/50 shadow-md" onerror="this.src='https://ui-avatars.com/api/?name=Jugador&background=random'" />
                     <span id="player-modal-number" class="absolute -bottom-1 -right-1 bg-amber-500 text-white font-black text-xs px-2 py-0.5 rounded-full border border-white">#--</span>
                 </div>
                 <div>

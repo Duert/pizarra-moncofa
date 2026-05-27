@@ -241,7 +241,7 @@ MoncofaApp.SquadManager = {
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                const dataUrl = canvas.toDataURL('image/png');
                 document.getElementById('p-photo-data').value = dataUrl;
                 document.getElementById('p-photo-preview').innerHTML = `<img src="${dataUrl}" class="w-full h-full object-cover">`;
             };

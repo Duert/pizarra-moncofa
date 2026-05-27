@@ -108,7 +108,7 @@ MoncofaApp.DB = {
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', quality));
+                resolve(canvas.toDataURL('image/png'));
             };
             img.onerror = () => resolve(base64Str);
             img.src = base64Str;

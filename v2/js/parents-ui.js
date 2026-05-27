@@ -17,6 +17,93 @@ MoncofaParents.UI = {
     playerStats: [],
     calendarMatches: [],
 
+    // Helpers
+    getRoleName(role) {
+        if (!role) return 'Jugador';
+        const r = role.toString().trim().toUpperCase();
+        if (r === 'GK' || r === 'PORTERO') return 'Portero';
+        return 'Jugador';
+    },
+
+    cleanLogoBackground(logoUrl, callback) {
+        if (!logoUrl || !logoUrl.startsWith('data:image')) {
+            callback(logoUrl);
+            return;
+        }
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                const width = img.width;
+                const height = img.height;
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                
+                const imgData = ctx.getImageData(0, 0, width, height);
+                const data = imgData.data;
+                
+                // Flood fill from corners/edges to find connected black pixels
+                const visited = new Uint8Array(width * height);
+                const queue = [];
+                
+                const checkAndPush = (x, y) => {
+                    if (x < 0 || x >= width || y < 0 || y >= height) return;
+                    const idx = y * width + x;
+                    if (visited[idx]) return;
+                    visited[idx] = 1;
+                    
+                    const pIdx = idx * 4;
+                    const r = data[pIdx];
+                    const g = data[pIdx+1];
+                    const b = data[pIdx+2];
+                    
+                    // Check if pixel is close to black (R < 30, G < 30, B < 30)
+                    if (r < 30 && g < 30 && b < 30) {
+                        queue.push(idx);
+                    }
+                };
+                
+                // Push edge pixels to start flood-fill from border
+                for (let x = 0; x < width; x++) {
+                    checkAndPush(x, 0);
+                    checkAndPush(x, height - 1);
+                }
+                for (let y = 0; y < height; y++) {
+                    checkAndPush(0, y);
+                    checkAndPush(width - 1, y);
+                }
+                
+                let head = 0;
+                while (head < queue.length) {
+                    const idx = queue[head++];
+                    const pIdx = idx * 4;
+                    
+                    // Make it transparent
+                    data[pIdx+3] = 0;
+                    
+                    const x = idx % width;
+                    const y = Math.floor(idx / width);
+                    
+                    // 4-connected neighbors
+                    checkAndPush(x + 1, y);
+                    checkAndPush(x - 1, y);
+                    checkAndPush(x, y + 1);
+                    checkAndPush(x, y - 1);
+                }
+                
+                ctx.putImageData(imgData, 0, 0);
+                callback(canvas.toDataURL('image/png'));
+            } catch (err) {
+                console.error("Error cleaning logo background:", err);
+                callback(logoUrl);
+            }
+        };
+        img.onerror = () => callback(logoUrl);
+        img.src = logoUrl;
+    },
+
     async init() {
         const SUPABASE_URL = 'https://ietelfmzsxoiktigkwdc.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlldGVsZm16c3hvaWt0aWdrd2RjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MDIxOTIsImV4cCI6MjA5NTQ3ODE5Mn0.QByo7nzlAJRzkN0EJE5esDfVlC_7onreJztzawpfebQ';
@@ -357,7 +444,8 @@ MoncofaParents.UI = {
             const posClass = t.position === 1 
                 ? 'bg-amber-100 text-amber-800' 
                 : (t.position <= 3 ? 'bg-slate-100 text-slate-700' : 'text-slate-400');
-            const logo = t.teamLogo || (t.isUs ? 'img/logo.png' : `https://ui-avatars.com/api/?name=${encodeURIComponent(t.teamName)}&background=random`);
+            const logo = t.isUs ? 'img/logo.png' : (t.teamLogo || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.teamName)}&background=random`);
+            const imgId = `team-logo-img-${t.teamId}`;
 
             return `
                 <tr class="${rowClass} text-slate-700 text-sm transition-colors">
@@ -368,7 +456,7 @@ MoncofaParents.UI = {
                     </td>
                     <td class="py-3.5 px-4">
                         <div class="flex items-center gap-3">
-                            <img src="${logo}" class="w-8 h-8 rounded-lg object-contain bg-slate-50 p-1 border border-slate-100" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(t.teamName)}&background=random'">
+                            <img id="${imgId}" src="${logo}" class="w-12 h-12 rounded-xl object-contain bg-slate-50 p-1.5 border border-slate-100" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(t.teamName)}&background=random'">
                             <span class="truncate max-w-[200px] md:max-w-xs">${t.teamName}</span>
                         </div>
                     </td>
@@ -383,6 +471,18 @@ MoncofaParents.UI = {
                 </tr>
             `;
         }).join('');
+
+        // Clean logo backgrounds dynamically for base64 logos
+        standings.forEach(t => {
+            if (!t.isUs && t.teamLogo && t.teamLogo.startsWith('data:image')) {
+                this.cleanLogoBackground(t.teamLogo, (cleanedUrl) => {
+                    const imgEl = document.getElementById(`team-logo-img-${t.teamId}`);
+                    if (imgEl) {
+                        imgEl.src = cleanedUrl;
+                    }
+                });
+            }
+        });
     },
 
     // --- RENDER ESTADISTICAS GRUPAL ---
@@ -511,12 +611,14 @@ MoncofaParents.UI = {
         const matchStats = this.playerStats.filter(s => s.match_id === activeMatch.id);
         const scorers = [];
         const assistants = [];
+        let totalPlayerGoals = 0;
 
         matchStats.forEach(s => {
             const player = this.players.find(p => p.id === s.player_id);
             if (!player) return;
 
             if (s.goals > 0) {
+                totalPlayerGoals += s.goals;
                 scorers.push({
                     name: player.name,
                     goals: s.goals
@@ -529,6 +631,15 @@ MoncofaParents.UI = {
                 });
             }
         });
+
+        // Calculate rival own goals
+        const ownGoalsCount = Math.max(0, ourScore - totalPlayerGoals);
+        if (ownGoalsCount > 0) {
+            scorers.push({
+                name: 'Gol en propia',
+                goals: ownGoalsCount
+            });
+        }
 
         // Format scorers text
         let scorersHtml = '';
@@ -637,15 +748,15 @@ MoncofaParents.UI = {
                     const photo = p.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random`;
                     return `
                         <div class="flex items-center justify-between p-3 bg-slate-50/50 border border-slate-100 rounded-2xl hover:shadow-md hover:bg-white transition-all">
-                            <div class="flex items-center gap-3">
-                                <span class="font-black text-slate-300 w-5 text-center text-sm">${index + 1}</span>
-                                <img src="${photo}" class="w-10 h-10 rounded-full object-cover border border-slate-200" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random'">
+                            <div class="flex items-center gap-4">
+                                <span class="font-black text-slate-300 w-6 text-center text-base">${index + 1}</span>
+                                <img src="${photo}" class="w-14 h-14 rounded-full object-cover border border-slate-200 shadow-sm" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random'">
                                 <div>
                                     <span class="font-bold text-slate-800 text-sm block leading-tight">${p.name}</span>
-                                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Dorsal ${p.number || '-'} • ${p.role || ''}</span>
+                                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Dorsal ${p.number || '-'} • ${this.getRoleName(p.role)}</span>
                                 </div>
                             </div>
-                            <span class="bg-emerald-100 text-emerald-800 font-black px-3 py-1 rounded-lg text-xs tracking-tight">${p.goals} Goles</span>
+                            <span class="bg-emerald-100 text-emerald-800 font-black px-3 py-1.5 rounded-lg text-xs tracking-tight">${p.goals} Goles</span>
                         </div>
                     `;
                 }).join('');
@@ -665,43 +776,43 @@ MoncofaParents.UI = {
                     const photo = p.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random`;
                     return `
                         <div class="flex items-center justify-between p-3 bg-slate-50/50 border border-slate-100 rounded-2xl hover:shadow-md hover:bg-white transition-all">
-                            <div class="flex items-center gap-3">
-                                <span class="font-black text-slate-300 w-5 text-center text-sm">${index + 1}</span>
-                                <img src="${photo}" class="w-10 h-10 rounded-full object-cover border border-slate-200" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random'">
+                            <div class="flex items-center gap-4">
+                                <span class="font-black text-slate-300 w-6 text-center text-base">${index + 1}</span>
+                                <img src="${photo}" class="w-14 h-14 rounded-full object-cover border border-slate-200 shadow-sm" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random'">
                                 <div>
                                     <span class="font-bold text-slate-800 text-sm block leading-tight">${p.name}</span>
-                                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Dorsal ${p.number || '-'} • ${p.role || ''}</span>
+                                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Dorsal ${p.number || '-'} • ${this.getRoleName(p.role)}</span>
                                 </div>
                             </div>
-                            <span class="bg-blue-100 text-blue-800 font-black px-3 py-1 rounded-lg text-xs tracking-tight">${p.assists} Asistencias</span>
+                            <span class="bg-blue-100 text-blue-800 font-black px-3 py-1.5 rounded-lg text-xs tracking-tight">${p.assists} Asistencias</span>
                         </div>
                     `;
                 }).join('');
             }
         }
 
-        // 3. Render Minutes
+        // 3. Render Participations
         const minutesRankingList = document.getElementById('minutes-ranking-list');
         if (minutesRankingList) {
-            const sortedByMins = [...playerList].sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name));
-            const activeMinutes = sortedByMins.filter(p => p.minutes > 0);
+            const sortedByPart = [...playerList].sort((a, b) => b.matchesPlayed - a.matchesPlayed || b.minutes - a.minutes || a.name.localeCompare(b.name));
+            const activeParticipations = sortedByPart.filter(p => p.matchesPlayed > 0);
 
-            if (activeMinutes.length === 0) {
-                minutesRankingList.innerHTML = `<p class="text-sm text-slate-400 font-bold text-center col-span-2 py-4">No se han registrado minutos jugados aún.</p>`;
+            if (activeParticipations.length === 0) {
+                minutesRankingList.innerHTML = `<p class="text-sm text-slate-400 font-bold text-center col-span-2 py-4">No se han registrado participaciones en partidos aún.</p>`;
             } else {
-                minutesRankingList.innerHTML = activeMinutes.map((p, index) => {
+                minutesRankingList.innerHTML = activeParticipations.map((p, index) => {
                     const photo = p.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random`;
                     return `
                         <div class="flex items-center justify-between p-3 bg-slate-50/50 border border-slate-100 rounded-2xl hover:shadow-md hover:bg-white transition-all">
-                            <div class="flex items-center gap-3">
-                                <span class="font-black text-slate-300 w-5 text-center text-sm">${index + 1}</span>
-                                <img src="${photo}" class="w-10 h-10 rounded-full object-cover border border-slate-200" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random'">
+                            <div class="flex items-center gap-4">
+                                <span class="font-black text-slate-300 w-6 text-center text-base">${index + 1}</span>
+                                <img src="${photo}" class="w-14 h-14 rounded-full object-cover border border-slate-200 shadow-sm" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random'">
                                 <div>
                                     <span class="font-bold text-slate-800 text-sm block leading-tight">${p.name}</span>
-                                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">${p.matchesPlayed} Partidos • Dorsal ${p.number || '-'}</span>
+                                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Dorsal ${p.number || '-'} • ${this.getRoleName(p.role)}</span>
                                 </div>
                             </div>
-                            <span class="bg-indigo-100 text-indigo-800 font-black px-3 py-1 rounded-lg text-xs tracking-tight">${p.minutes} Minutos</span>
+                            <span class="bg-indigo-100 text-indigo-800 font-black px-3 py-1.5 rounded-lg text-xs tracking-tight">${p.matchesPlayed} Partidos</span>
                         </div>
                     `;
                 }).join('');
@@ -718,18 +829,18 @@ MoncofaParents.UI = {
                 playersGridList.innerHTML = sortedByNumber.map(p => {
                     const photo = p.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random`;
                     return `
-                        <div onclick="MoncofaParents.UI.openPlayerDetails(${p.id})" class="flex items-center gap-4 p-4 bg-slate-50 hover:bg-emerald-50/50 border border-slate-100 hover:border-emerald-200 rounded-2xl cursor-pointer transition-all duration-300 hover:shadow-md group">
-                            <div class="relative w-12 h-12 flex-shrink-0">
-                                <img src="${photo}" class="w-full h-full rounded-full object-cover border border-slate-200" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random'">
-                                <span class="absolute -bottom-1 -right-1 bg-slate-800 group-hover:bg-emerald-500 text-white font-black text-[9px] px-1.5 py-0.5 rounded-full border border-white transition-colors">
+                        <div onclick="MoncofaParents.UI.openPlayerDetails(${p.id})" class="flex items-center gap-5 p-4 bg-slate-50 hover:bg-emerald-50/50 border border-slate-100 hover:border-emerald-200 rounded-3xl cursor-pointer transition-all duration-300 hover:shadow-lg group">
+                            <div class="relative w-20 h-20 flex-shrink-0">
+                                <img src="${photo}" class="w-full h-full rounded-full object-cover border-2 border-slate-200 shadow-sm" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random'">
+                                <span class="absolute -bottom-1 -right-1 bg-slate-800 group-hover:bg-emerald-500 text-white font-black text-[10px] px-2 py-0.5 rounded-full border-2 border-white transition-colors shadow-sm">
                                     #${p.number || '--'}
                                 </span>
                             </div>
                             <div class="truncate flex-1 min-w-0">
-                                <span class="font-bold text-slate-800 text-sm block leading-tight group-hover:text-emerald-950 truncate">${p.name}</span>
-                                <span class="text-[9px] font-black text-slate-400 group-hover:text-emerald-700 uppercase tracking-widest block mt-0.5">${p.role || 'Jugador'}</span>
+                                <span class="font-extrabold text-slate-800 text-base block leading-tight group-hover:text-emerald-950 truncate">${p.name}</span>
+                                <span class="text-[10px] font-black text-slate-400 group-hover:text-emerald-700 uppercase tracking-widest block mt-1">${this.getRoleName(p.role)}</span>
                             </div>
-                            <div class="text-slate-300 group-hover:text-emerald-400 transition-colors ml-2">
+                            <div class="text-slate-300 group-hover:text-emerald-400 transition-colors ml-1">
                                 <i data-lucide="chevron-right" class="w-5 h-5"></i>
                             </div>
                         </div>
@@ -772,7 +883,7 @@ MoncofaParents.UI = {
 
         // Populate modal data
         document.getElementById('player-modal-name').textContent = player.name;
-        document.getElementById('player-modal-role').textContent = player.role || 'Jugador';
+        document.getElementById('player-modal-role').textContent = this.getRoleName(player.role);
         document.getElementById('player-modal-number').textContent = `#${player.number || '--'}`;
         
         const photoEl = document.getElementById('player-modal-photo');
