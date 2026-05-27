@@ -29,9 +29,90 @@ MoncofaApp.DB = {
             await db.open();
             console.log("Local Database initialized successfully.");
             await this.syncPlayersFromConstants();
+            await this.compressExistingLargePhotos();
         } catch (e) {
             console.error("Failed to initialize database:", e);
         }
+    },
+
+    async compressExistingLargePhotos() {
+        try {
+            let updated = false;
+            
+            // Compress player photos
+            const players = await db.players.toArray();
+            for (let p of players) {
+                if (p.photo && p.photo.length > 100000) { // > ~75KB
+                    console.log(`Compressing large photo for player ${p.name}...`);
+                    const compressed = await this.compressBase64Image(p.photo, 256, 256, 0.8);
+                    p.photo = compressed;
+                    await db.players.put(p);
+                    updated = true;
+                }
+            }
+            
+            // Compress team logos
+            const teams = await db.league_teams.toArray();
+            for (let t of teams) {
+                if (t.logo && t.logo.length > 100000) {
+                    console.log(`Compressing large logo for league team ${t.name}...`);
+                    const compressed = await this.compressBase64Image(t.logo, 256, 256, 0.8);
+                    t.logo = compressed;
+                    await db.league_teams.put(t);
+                    updated = true;
+                }
+            }
+            
+            if (updated) {
+                console.log("Completed compression of large assets in IndexedDB.");
+                // Sync State.squad with compressed photos
+                if (window.MoncofaApp && window.MoncofaApp.State && window.MoncofaApp.State.squad) {
+                    const squad = window.MoncofaApp.State.squad;
+                    const dbPlayers = await db.players.toArray();
+                    dbPlayers.forEach(dp => {
+                        const idx = squad.findIndex(x => x.id === dp.id);
+                        if (idx !== -1) {
+                            squad[idx].photo = dp.photo;
+                        }
+                    });
+                    localStorage.setItem('moncofa_squad', JSON.stringify(squad));
+                    MoncofaApp.State.saveSession();
+                }
+            }
+        } catch (e) {
+            console.error("Error compressing existing photos:", e);
+        }
+    },
+
+    compressBase64Image(base64Str, maxWidth, maxHeight, quality) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height *= maxWidth / width;
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width *= maxHeight / height;
+                        height = maxHeight;
+                    }
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = () => resolve(base64Str);
+            img.src = base64Str;
+        });
     },
 
     // Sync initial players from Constants to DB if not present
