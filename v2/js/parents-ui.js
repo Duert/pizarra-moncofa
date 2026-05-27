@@ -355,7 +355,7 @@ MoncofaParents.UI = {
             const posClass = t.position === 1 
                 ? 'bg-amber-100 text-amber-800' 
                 : (t.position <= 3 ? 'bg-slate-100 text-slate-700' : 'text-slate-400');
-            const logo = t.teamLogo || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.teamName)}&background=random`;
+            const logo = t.teamLogo || (t.isUs ? 'img/logo.png' : `https://ui-avatars.com/api/?name=${encodeURIComponent(t.teamName)}&background=random`);
 
             return `
                 <tr class="${rowClass} text-slate-700 text-sm transition-colors">
@@ -427,8 +427,8 @@ MoncofaParents.UI = {
         const lastMatchCard = document.getElementById('last-match-card');
         if (lastMatchCard) {
             if (matches.length > 0) {
-                // Sort matches by date to find the last one
-                const sorted = [...matches].sort((a, b) => new Date(b.date) - new Date(a.date));
+                // Sort matches by matchday descending to find the last one
+                const sorted = [...matches].sort((a, b) => b.matchday - a.matchday);
                 const last = sorted[0];
                 const ourScore = last.is_home ? last.home_score : last.away_score;
                 const rivalScore = last.is_home ? last.away_score : last.home_score;
