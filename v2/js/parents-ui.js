@@ -791,17 +791,18 @@ MoncofaParents.UI = {
             }
         }
 
-        // 3. Render Participations
+        // 3. Render Participations (Goals + Assists)
         const minutesRankingList = document.getElementById('minutes-ranking-list');
         if (minutesRankingList) {
-            const sortedByPart = [...playerList].sort((a, b) => b.matchesPlayed - a.matchesPlayed || b.minutes - a.minutes || a.name.localeCompare(b.name));
-            const activeParticipations = sortedByPart.filter(p => p.matchesPlayed > 0);
+            const sortedByPart = [...playerList].sort((a, b) => (b.goals + b.assists) - (a.goals + a.assists) || b.goals - a.goals || a.name.localeCompare(b.name));
+            const activeParticipations = sortedByPart.filter(p => (p.goals + p.assists) > 0);
 
             if (activeParticipations.length === 0) {
-                minutesRankingList.innerHTML = `<p class="text-sm text-slate-400 font-bold text-center col-span-2 py-4">No se han registrado participaciones en partidos aún.</p>`;
+                minutesRankingList.innerHTML = `<p class="text-sm text-slate-400 font-bold text-center col-span-2 py-4">No se han registrado participaciones en goles aún.</p>`;
             } else {
                 minutesRankingList.innerHTML = activeParticipations.map((p, index) => {
                     const photo = p.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random`;
+                    const totalPart = p.goals + p.assists;
                     return `
                         <div class="flex items-center justify-between p-3 bg-slate-50/50 border border-slate-100 rounded-2xl hover:shadow-md hover:bg-white transition-all">
                             <div class="flex items-center gap-4">
@@ -809,10 +810,10 @@ MoncofaParents.UI = {
                                 <img src="${photo}" class="w-14 h-14 rounded-full object-cover border border-slate-200 shadow-sm" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random'">
                                 <div>
                                     <span class="font-bold text-slate-800 text-sm block leading-tight">${p.name}</span>
-                                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Dorsal ${p.number || '-'} • ${this.getRoleName(p.role)}</span>
+                                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Dorsal ${p.number || '-'} • ${this.getRoleName(p.role)} • (${p.goals} G + ${p.assists} A)</span>
                                 </div>
                             </div>
-                            <span class="bg-indigo-100 text-indigo-800 font-black px-3 py-1.5 rounded-lg text-xs tracking-tight">${p.matchesPlayed} Partidos</span>
+                            <span class="bg-indigo-100 text-indigo-800 font-black px-3 py-1.5 rounded-lg text-xs tracking-tight">${totalPart} Part.</span>
                         </div>
                     `;
                 }).join('');
