@@ -102,7 +102,7 @@ MoncofaApp.SyncManager = {
                 break;
             case 'league_teams':
                 dexieTable = MoncofaApp.DB.league_teams;
-                mapFn = t => ({ id: t.id, season_id: t.seasonId || null, name: t.name });
+                mapFn = t => ({ id: t.id, season_id: t.seasonId || null, name: t.name, logo: t.logo || null });
                 break;
             case 'matches':
                 dexieTable = MoncofaApp.DB.matches;
@@ -200,7 +200,7 @@ MoncofaApp.SyncManager = {
                 name: 'league_teams',
                 label: 'Equipos de la Liga',
                 dexieTable: MoncofaApp.DB.league_teams,
-                mapFn: t => ({ id: t.id, season_id: t.seasonId || null, name: t.name })
+                mapFn: t => ({ id: t.id, season_id: t.seasonId || null, name: t.name, logo: t.logo || null })
             },
             {
                 name: 'matches',
