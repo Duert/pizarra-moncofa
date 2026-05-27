@@ -1,0 +1,713 @@
+"use strict";
+
+window.MoncofaApp = window.MoncofaApp || {};
+
+// ALERT TO VERIFY LOAD
+// Module initialized
+
+MoncofaApp.Drawing = {
+    canvasFg: null, // Default (Z-30) - Over players
+    canvasBg: null, // Background (Z-10) - Under players
+    ctxFg: null,
+    ctxBg: null,
+
+    isDrawing: false,
+    currentTool: 'pen',
+    activeLayer: 'fg', // 'fg' or 'bg'
+    currentColor: '#ef4444',
+
+    paths: [], // {type, color, width, points/start/end, layer: 'fg'|'bg'}
+    currentPath: null,
+
+    // Tools Configuration
+    tools: {
+        pen: { width: 3 },
+        arrow: { width: 3 },
+        curve: { width: 3 },
+        line: { width: 3 },
+        dashed: { width: 3, dash: [10, 10] },
+        curve_line: { width: 3 },
+        rect: { width: 3 },
+        circle: { width: 3 },
+        eraser: { width: 20 }, // Standard pixel eraser
+        eraser_obj: { action: true } // New Object Eraser
+    },
+
+    init() {
+        console.log("Drawing Module Initialized (Layers + Smart Erase)");
+
+        // FORCE REMOVE ANY OLD TOOLBAR
+        const oldToolbar = document.getElementById('drawing-toolbar');
+        if (oldToolbar) oldToolbar.remove();
+
+        this.setupCanvas();
+        this.createToolbar();
+        window.addEventListener('resize', () => this.resizeCanvas());
+    },
+
+    setupCanvas() {
+        const pitch = document.getElementById('pitch');
+        if (!pitch) return;
+
+        // 1. Background Canvas (Under Players)
+        if (!document.getElementById('drawing-canvas-bg')) {
+            this.canvasBg = document.createElement('canvas');
+            this.canvasBg.id = 'drawing-canvas-bg';
+            this.canvasBg.className = 'absolute inset-0 w-full h-full pointer-events-none z-[10]';
+            pitch.appendChild(this.canvasBg);
+        } else {
+            this.canvasBg = document.getElementById('drawing-canvas-bg');
+        }
+        this.ctxBg = this.canvasBg.getContext('2d');
+
+        // 2. Foreground Canvas (Over Players)
+        if (!document.getElementById('drawing-canvas')) {
+            this.canvasFg = document.createElement('canvas');
+            this.canvasFg.id = 'drawing-canvas'; // Keep ID for compatibility
+            this.canvasFg.className = 'absolute inset-0 w-full h-full pointer-events-none z-[40]';
+            pitch.appendChild(this.canvasFg);
+        } else {
+            this.canvasFg = document.getElementById('drawing-canvas');
+            this.canvasFg.className = 'absolute inset-0 w-full h-full pointer-events-none z-[40]';
+        }
+        this.ctxFg = this.canvasFg.getContext('2d');
+
+        this.resizeCanvas();
+
+        this.canvasFg.onmousedown = (e) => this.startDrawing(e);
+        this.canvasFg.onmousemove = (e) => this.draw(e);
+        this.canvasFg.onmouseup = () => this.stopDrawing();
+        this.canvasFg.onmouseout = () => this.stopDrawing();
+
+        this.canvasFg.ontouchstart = (e) => this.startDrawing(e);
+        this.canvasFg.ontouchmove = (e) => this.draw(e);
+        this.canvasFg.ontouchend = () => this.stopDrawing();
+    },
+
+    resizeCanvas() {
+        if (!this.canvasFg) return;
+        const rect = this.canvasFg.parentElement.getBoundingClientRect();
+
+        [this.canvasFg, this.canvasBg].forEach(c => {
+            if (c) {
+                if (c.width !== rect.width || c.height !== rect.height) {
+                    c.width = rect.width;
+                    c.height = rect.height;
+                }
+            }
+        });
+        this.redraw();
+    },
+
+    createToolbar() {
+        const wrapper = document.querySelector('.glass-panel');
+        if (!wrapper) return;
+
+        const toolbar = document.createElement('div');
+        toolbar.className = 'absolute flex flex-col bg-white/95 backdrop-blur shadow-2xl rounded-xl border border-slate-200 z-[60] transition-opacity duration-200 cursor-move opacity-0 pointer-events-none select-none touch-none';
+        toolbar.style.top = '20px';
+        toolbar.style.left = '20px';
+        toolbar.id = 'drawing-toolbar';
+
+        // Header
+        const header = document.createElement('div');
+        header.className = 'flex items-center justify-between p-2 cursor-move border-b border-slate-100 bg-slate-50 rounded-t-xl';
+
+        // Layer Toggle (New!)
+        const layerToggle = document.createElement('button');
+        layerToggle.id = 'layer-toggle-btn';
+        layerToggle.className = 'flex items-center gap-2 px-2 py-1 text-xs font-bold text-slate-600 bg-slate-200 rounded hover:bg-slate-300 transition-colors mr-2';
+        layerToggle.innerHTML = '<i data-lucide="layers" class="w-3 h-3"></i> <span>TOP</span>';
+        layerToggle.onmousedown = (e) => e.stopPropagation();
+        layerToggle.ontouchstart = (e) => e.stopPropagation();
+        layerToggle.onclick = (e) => {
+            e.stopPropagation();
+            this.activeLayer = this.activeLayer === 'fg' ? 'bg' : 'fg';
+            layerToggle.innerHTML = `<i data-lucide="layers" class="w-3 h-3"></i> <span>${this.activeLayer === 'fg' ? 'TOP' : 'BTM'}</span>`;
+            layerToggle.className = `flex items-center gap-2 px-2 py-1 text-xs font-bold rounded transition-colors mr-2 ${this.activeLayer === 'fg' ? 'text-blue-700 bg-blue-100' : 'text-amber-700 bg-amber-100'}`;
+        };
+
+        const dragHandle = document.createElement('div');
+        dragHandle.className = 'flex-1 flex justify-center cursor-move';
+        dragHandle.innerHTML = '<div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>';
+
+        const collapseBtn = document.createElement('button');
+        collapseBtn.className = 'w-6 h-6 flex items-center justify-center bg-slate-200 text-slate-600 rounded-full ml-2';
+        collapseBtn.innerHTML = '<i data-lucide="minus" class="w-4 h-4"></i>';
+        collapseBtn.onmousedown = (e) => e.stopPropagation();
+
+        header.appendChild(layerToggle);
+        header.appendChild(dragHandle);
+        header.appendChild(collapseBtn);
+        toolbar.appendChild(header);
+
+        // Content
+        const contentContainer = document.createElement('div');
+        contentContainer.className = 'p-2 transition-all duration-300';
+        contentContainer.id = 'toolbar-content';
+
+        // Tools
+        const toolsGrid = document.createElement('div');
+        toolsGrid.className = 'grid grid-cols-2 gap-2 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1';
+
+        const tools = [
+            { id: 'move', icon: 'move', color: 'text-amber-600' },
+            { id: 'spawn_ball', icon: 'circle-dot', color: 'text-emerald-600', action: true },
+            { id: 'pen', icon: 'pen-tool', color: 'text-slate-700' },
+            { id: 'arrow', icon: 'move-up-right', color: 'text-slate-700' },
+            { id: 'line', icon: 'minus', color: 'text-slate-700' },
+            { id: 'dashed', icon: 'more-horizontal', color: 'text-slate-700' },
+            { id: 'curve', icon: 'corner-up-right', color: 'text-slate-700' },
+            { id: 'rect', icon: 'square', color: 'text-slate-700' },
+            { id: 'circle', icon: 'circle', color: 'text-slate-700' },
+            { id: 'eraser_obj', icon: 'x', color: 'text-rose-600', label: 'Smart' },
+            { id: 'eraser', icon: 'eraser', color: 'text-slate-500' },
+            { id: 'undo', icon: 'undo-2', color: 'text-slate-700', action: true },
+            { id: 'clear', icon: 'trash-2', color: 'text-red-500', action: true }
+        ];
+
+        tools.forEach(t => {
+            const btn = document.createElement('button');
+            btn.className = `p-2 rounded-lg hover:bg-slate-100 transition-colors flex items-center justify-center gap-1 ${t.id === this.currentTool && !t.action ? 'bg-blue-100 text-blue-600 ring-2 ring-blue-500' : t.color}`;
+
+            if (t.id === 'spawn_ball') {
+                btn.innerHTML = `<img src="assets/ball.jpg" class="w-6 h-6 rounded-full object-cover pointer-events-none">`;
+            } else {
+                btn.innerHTML = `<i data-lucide="${t.icon}" class="w-5 h-5 pointer-events-none"></i>${t.label ? `<span class="text-[10px] font-bold">${t.label}</span>` : ''}`;
+            }
+            btn.onmousedown = (e) => e.stopPropagation();
+            btn.ontouchstart = (e) => e.stopPropagation();
+
+            btn.onclick = () => {
+                if (t.action) {
+                    if (t.id === 'clear') this.clearCanvas();
+                    if (t.id === 'undo') this.undo();
+                    if (t.id === 'spawn_ball') MoncofaApp.DragManager.spawnBall();
+                } else {
+                    this.setTool(t.id);
+                    toolsGrid.querySelectorAll('button').forEach(b => {
+                        b.classList.remove('bg-blue-100', 'text-blue-600', 'ring-2', 'ring-blue-500', 'bg-amber-100', 'text-amber-600', 'ring-amber-500', 'bg-rose-100', 'text-rose-600', 'ring-rose-500');
+                    });
+
+                    if (t.id === 'move') {
+                        btn.classList.add('bg-amber-100', 'text-amber-600', 'ring-2', 'ring-amber-500');
+                    } else if (t.id === 'eraser_obj') {
+                        btn.classList.add('bg-rose-100', 'text-rose-600', 'ring-2', 'ring-rose-500');
+                    } else {
+                        btn.classList.add('bg-blue-100', 'text-blue-600', 'ring-2', 'ring-blue-500');
+                    }
+                }
+            };
+            toolsGrid.appendChild(btn);
+        });
+        contentContainer.appendChild(toolsGrid);
+
+        // Colors
+        const colors = ['#dc2626', '#2563eb', '#16a34a', '#facc15', '#000000', '#ffffff'];
+        const colorDiv = document.createElement('div');
+        colorDiv.className = 'grid grid-cols-6 gap-1 mt-2 pt-2 border-t border-slate-200';
+        colors.forEach(c => {
+            const btn = document.createElement('button');
+            btn.className = `w-6 h-6 rounded-full border border-slate-300 shadow-sm hover:scale-110 transition-transform ${this.currentColor === c ? 'ring-2 ring-offset-1 ring-slate-400' : ''}`;
+            btn.style.backgroundColor = c;
+            btn.onmousedown = (e) => e.stopPropagation();
+            btn.ontouchstart = (e) => e.stopPropagation();
+            btn.onclick = () => {
+                this.currentColor = c;
+                colorDiv.querySelectorAll('button').forEach(b => b.classList.remove('ring-2', 'ring-offset-1', 'ring-slate-400'));
+                btn.classList.add('ring-2', 'ring-offset-1', 'ring-slate-400');
+            };
+            colorDiv.appendChild(btn);
+        });
+        contentContainer.appendChild(colorDiv);
+        toolbar.appendChild(contentContainer);
+
+        wrapper.appendChild(toolbar);
+        lucide.createIcons();
+
+        // Drag Logic
+        let isDragging = false, startX, startY, initialLeft, initialTop;
+        const startDrag = (e) => {
+            if (e.target.closest('button')) return;
+            isDragging = true;
+            const t = e.touches ? e.touches[0] : e;
+            startX = t.clientX; startY = t.clientY;
+            initialLeft = toolbar.offsetLeft; initialTop = toolbar.offsetTop;
+            toolbar.style.transition = 'none';
+            e.preventDefault();
+        };
+        const doDrag = (e) => {
+            if (!isDragging) return;
+            const t = e.touches ? e.touches[0] : e;
+            toolbar.style.left = `${initialLeft + (t.clientX - startX)}px`;
+            toolbar.style.top = `${initialTop + (t.clientY - startY)}px`;
+        };
+        const stopDrag = () => { isDragging = false; toolbar.style.transition = 'opacity 0.2s'; };
+
+        header.onmousedown = startDrag;
+        header.ontouchstart = startDrag;
+        document.onmousemove = doDrag;
+        document.ontouchmove = doDrag;
+        document.onmouseup = stopDrag;
+        document.ontouchend = stopDrag;
+
+        // Collapse
+        let isCollapsed = false;
+        collapseBtn.onclick = () => {
+            isCollapsed = !isCollapsed;
+            contentContainer.style.display = isCollapsed ? 'none' : 'block';
+            collapseBtn.innerHTML = isCollapsed ? '<i data-lucide="plus" class="w-4 h-4"></i>' : '<i data-lucide="minus" class="w-4 h-4"></i>';
+            if (isCollapsed) header.classList.add('rounded-b-xl'); else header.classList.remove('rounded-b-xl');
+            lucide.createIcons();
+        };
+    },
+
+    toggleDrawingMode(btn) {
+        if (!this.canvasFg) this.setupCanvas();
+        if (!document.getElementById('drawing-toolbar')) this.createToolbar();
+
+        const canvas = document.getElementById('drawing-canvas');
+        const toolbar = document.getElementById('drawing-toolbar');
+        const pitch = document.getElementById('pitch');
+        const isActive = !canvas.classList.contains('pointer-events-none');
+
+        if (isActive) {
+            // Deactivate
+            canvas.classList.add('pointer-events-none');
+            toolbar.classList.add('opacity-0', 'pointer-events-none');
+            toolbar.classList.remove('opacity-100', 'pointer-events-auto');
+            pitch.classList.remove('tactical-mode', 'move-active');
+
+            this.clearCanvas();
+
+            const ball = document.getElementById('training-ball');
+            if (ball) ball.remove();
+
+            btn.classList.remove('bg-pink-800', 'ring-2', 'ring-white', 'scale-105');
+            btn.classList.add('bg-pink-600');
+        } else {
+            // Activate
+            canvas.classList.remove('pointer-events-none');
+            toolbar.classList.remove('opacity-0', 'pointer-events-none');
+            toolbar.classList.add('opacity-100', 'pointer-events-auto');
+            pitch.classList.add('tactical-mode');
+
+            // Force tool set to ensure styling
+            this.setTool(this.currentTool);
+
+            btn.classList.remove('bg-pink-600');
+            btn.classList.add('bg-pink-800', 'ring-2', 'ring-white', 'scale-105');
+        }
+    },
+
+    setTool(tool) {
+        this.currentTool = tool;
+        const pitch = document.getElementById('pitch');
+        const canvas = document.getElementById('drawing-canvas');
+
+        if (tool === 'move') {
+            if (pitch) pitch.classList.add('move-active');
+            if (canvas) canvas.classList.add('pointer-events-none');
+        } else {
+            if (pitch) pitch.classList.remove('move-active');
+            if (canvas) canvas.classList.remove('pointer-events-none');
+        }
+    },
+
+    getPos(e) {
+        const rect = this.canvasFg.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+            x: clientX - rect.left,
+            y: clientY - rect.top,
+            pctX: (clientX - rect.left) / rect.width,
+            pctY: (clientY - rect.top) / rect.height
+        };
+    },
+
+    // --- Drawing State ---
+    curveState: null,
+    shapeStart: null,
+    arrowStart: null,
+    savedImageData: null,
+
+    startDrawing(e) {
+        if (this.currentTool === 'move') return;
+
+        // Smart Eraser Click
+        if (this.currentTool === 'eraser_obj') {
+            this.handleSmartEraser(e);
+            return;
+        }
+
+        e.preventDefault();
+        const pos = this.getPos(e);
+        const ctx = this.activeLayer === 'fg' ? this.ctxFg : this.ctxBg;
+        const canvas = this.activeLayer === 'fg' ? this.canvasFg : this.canvasBg;
+
+        if (this.currentTool === 'curve' || this.currentTool === 'curve_line') {
+            this.handleCurveStart(pos);
+            return;
+        }
+
+        this.isDrawing = true;
+        this.savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        if (this.currentTool === 'rect' || this.currentTool === 'circle') {
+            this.shapeStart = pos;
+        } else if (['arrow', 'line', 'dashed'].includes(this.currentTool)) {
+            this.arrowStart = pos;
+        } else {
+            // Pen / Eraser
+            this.currentPath = {
+                type: this.currentTool,
+                color: this.currentColor,
+                width: this.tools[this.currentTool].width,
+                layer: this.activeLayer,
+                points: [pos]
+            };
+        }
+    },
+
+    handleSmartEraser(e) {
+        const pos = this.getPos(e);
+        const hitThreshold = 10;
+        let hitIndex = -1;
+
+        for (let i = this.paths.length - 1; i >= 0; i--) {
+            if (this.isPointInPath(pos, this.paths[i], hitThreshold)) {
+                hitIndex = i;
+                break;
+            }
+        }
+
+        if (hitIndex !== -1) {
+            this.paths.splice(hitIndex, 1);
+            this.redraw();
+        }
+    },
+
+    isPointInPath(pos, path, threshold) {
+        if (path.points) {
+            for (let i = 0; i < path.points.length - 1; i++) {
+                const p1 = this.scalePoint(path.points[i]);
+                const p2 = this.scalePoint(path.points[i + 1]);
+                if (this.distToSegment(pos, p1, p2) < threshold) return true;
+            }
+        }
+        else if (path.start && path.end) {
+            const p1 = this.scalePoint(path.start);
+            const p2 = this.scalePoint(path.end);
+            const minX = Math.min(p1.x, p2.x) - threshold;
+            const maxX = Math.max(p1.x, p2.x) + threshold;
+            const minY = Math.min(p1.y, p2.y) - threshold;
+            const maxY = Math.max(p1.y, p2.y) + threshold;
+            return (pos.x >= minX && pos.x <= maxX && pos.y >= minY && pos.y <= maxY);
+        }
+        else if (path.from && path.to) {
+            const p1 = this.scalePoint(path.from);
+            const p2 = this.scalePoint(path.to);
+            if (this.distToSegment(pos, p1, p2) < threshold) return true;
+        }
+        return false;
+    },
+
+    distToSegment(p, v, w) {
+        const l2 = (v.x - w.x) ** 2 + (v.y - w.y) ** 2;
+        if (l2 == 0) return Math.sqrt((p.x - v.x) ** 2 + (p.y - v.y) ** 2);
+        let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        return Math.sqrt((p.x - (v.x + t * (w.x - v.x))) ** 2 + (p.y - (v.y + t * (w.y - v.y))) ** 2);
+    },
+
+    handleCurveStart(pos) {
+        const ctx = this.activeLayer === 'fg' ? this.ctxFg : this.ctxBg;
+        const canvas = this.activeLayer === 'fg' ? this.canvasFg : this.canvasBg;
+
+        if (!this.curveState || this.curveState.phase === 'idle') {
+            this.isDrawing = true;
+            this.savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            this.curveState = { phase: 'line', start: pos, end: pos, control: pos };
+        } else if (this.curveState.phase === 'bend_wait') {
+            this.curveState.phase = 'bending';
+            this.isDrawing = true;
+        }
+    },
+
+    draw(e) {
+        if (!this.isDrawing && !this.curveState) return;
+        e.preventDefault();
+        const pos = this.getPos(e);
+        this.lastPos = pos;
+
+        const ctx = this.activeLayer === 'fg' ? this.ctxFg : this.ctxBg;
+
+        if (this.currentTool === 'curve' || this.currentTool === 'curve_line') {
+            this.handleCurveMove(pos);
+            return;
+        }
+
+        ctx.putImageData(this.savedImageData, 0, 0);
+
+        if (this.currentTool === 'rect' || this.currentTool === 'circle') {
+            this.drawShape(ctx, this.currentTool, this.shapeStart, pos, this.currentColor);
+        } else if (['arrow', 'line', 'dashed'].includes(this.currentTool)) {
+            const isDashed = this.currentTool === 'dashed';
+            const hasHead = this.currentTool === 'arrow';
+            this.drawArrow(ctx, this.arrowStart.x, this.arrowStart.y, pos.x, pos.y, this.currentColor, hasHead, isDashed);
+        } else {
+            this.currentPath.points.push(pos);
+            this.renderPath(ctx, this.currentPath);
+        }
+    },
+
+    handleCurveMove(pos) {
+        if (!this.isDrawing) return;
+        if (this.curveState.phase === 'line') {
+            this.curveState.end = pos;
+            this.curveState.control = { x: (this.curveState.start.x + pos.x) / 2, y: (this.curveState.start.y + pos.y) / 2 };
+        } else if (this.curveState.phase === 'bending') {
+            this.curveState.control = pos;
+        }
+        this.redraw();
+        const ctx = this.activeLayer === 'fg' ? this.ctxFg : this.ctxBg;
+        this.drawCurvedArrowGhost(ctx, this.curveState);
+    },
+
+    stopDrawing() {
+        if (this.currentTool === 'curve' || this.currentTool === 'curve_line') {
+            this.handleCurveStop();
+            return;
+        }
+
+        if (!this.isDrawing) return;
+        this.isDrawing = false;
+
+        let newPath = null;
+        if (this.currentTool === 'rect' || this.currentTool === 'circle') {
+            if (this.shapeStart && this.lastPos) {
+                newPath = { type: this.currentTool, color: this.currentColor, start: this.shapeStart, end: this.lastPos, layer: this.activeLayer };
+            }
+        } else if (['arrow', 'line', 'dashed'].includes(this.currentTool)) {
+            if (this.arrowStart && this.lastPos) {
+                newPath = { type: this.currentTool, color: this.currentColor, from: this.arrowStart, to: this.lastPos, layer: this.activeLayer };
+            }
+        } else {
+            if (this.currentPath && this.currentPath.points.length > 1) {
+                newPath = this.currentPath;
+            }
+        }
+
+        if (newPath) this.paths.push(newPath);
+        this.cleanup();
+    },
+
+    handleCurveStop() {
+        if (!this.isDrawing) return;
+        this.isDrawing = false;
+
+        const ctx = this.activeLayer === 'fg' ? this.ctxFg : this.ctxBg;
+
+        if (this.curveState.phase === 'line') {
+            this.curveState.phase = 'bend_wait';
+            this.redraw();
+            this.drawCurvedArrowGhost(ctx, this.curveState, true);
+        } else if (this.curveState.phase === 'bending') {
+            this.paths.push({
+                type: this.currentTool,
+                color: this.currentColor,
+                start: this.curveState.start,
+                end: this.curveState.end,
+                control: this.curveState.control,
+                width: 3,
+                layer: this.activeLayer
+            });
+            this.curveState = null;
+            this.redraw();
+        }
+    },
+
+    cleanup() {
+        this.currentPath = null;
+        this.arrowStart = null;
+        this.shapeStart = null;
+        this.savedImageData = null;
+        this.lastPos = null;
+        this.redraw();
+    },
+
+    redraw() {
+        if (!this.ctxFg || !this.ctxBg) return;
+        this.ctxFg.clearRect(0, 0, this.canvasFg.width, this.canvasFg.height);
+        this.ctxBg.clearRect(0, 0, this.canvasBg.width, this.canvasBg.height);
+
+        this.paths.forEach(path => {
+            const targetCtx = (path.layer === 'bg') ? this.ctxBg : this.ctxFg;
+
+            if (['arrow', 'line', 'dashed'].includes(path.type)) {
+                const s = this.scalePoint(path.from);
+                const e = this.scalePoint(path.to);
+                const hasHead = path.type === 'arrow';
+                const isDashed = path.type === 'dashed';
+                this.drawArrow(targetCtx, s.x, s.y, e.x, e.y, path.color, hasHead, isDashed);
+            } else if (['curve', 'curve_line'].includes(path.type)) {
+                const s = this.scalePoint(path.start);
+                const e = this.scalePoint(path.end);
+                const c = this.scalePoint(path.control);
+                const hasHead = path.type === 'curve';
+                this.drawCurvedArrow(targetCtx, s, e, c, path.color, false, hasHead);
+            } else if (['rect', 'circle'].includes(path.type)) {
+                const s = this.scalePoint(path.start);
+                const e = this.scalePoint(path.end);
+                this.drawShape(targetCtx, path.type, s, e, path.color);
+            } else {
+                this.renderPath(targetCtx, path);
+            }
+        });
+    },
+
+    scalePoint(pt) {
+        if (!this.canvasFg) return pt;
+        const w = this.canvasFg.width; // Same as Bg
+        const h = this.canvasFg.height;
+        if (pt.pctX !== undefined) return { x: pt.pctX * w, y: pt.pctY * h };
+        return pt;
+    },
+
+    renderPath(ctx, path) {
+        if (!path.points || path.points.length < 2) return;
+        ctx.beginPath();
+        ctx.lineWidth = path.width;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        if (path.type === 'eraser') ctx.globalCompositeOperation = 'destination-out';
+        else {
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.strokeStyle = path.color;
+        }
+
+        if (this.tools[path.type] && this.tools[path.type].dash) ctx.setLineDash(this.tools[path.type].dash);
+        else ctx.setLineDash([]);
+
+        const start = this.scalePoint(path.points[0]);
+        ctx.moveTo(start.x, start.y);
+        for (let i = 1; i < path.points.length; i++) {
+            const p = this.scalePoint(path.points[i]);
+            ctx.lineTo(p.x, p.y);
+        }
+        ctx.stroke();
+    },
+
+    drawArrow(ctx, fromx, fromy, tox, toy, color, hasHead = true, isDashed = false) {
+        const headlen = 15;
+        const angle = Math.atan2(toy - fromy, tox - fromx);
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 3;
+        ctx.globalCompositeOperation = 'source-over';
+
+        if (isDashed) ctx.setLineDash([10, 10]); else ctx.setLineDash([]);
+
+        ctx.beginPath();
+        ctx.moveTo(fromx, fromy);
+        ctx.lineTo(tox, toy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        if (hasHead) {
+            ctx.beginPath();
+            ctx.moveTo(tox, toy);
+            ctx.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.lineTo(tox, toy);
+            ctx.fill();
+        }
+    },
+
+    drawShape(ctx, type, start, end, color) {
+        ctx.beginPath();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = color;
+
+        const pCanvas = document.createElement('canvas'); // Helper for pattern
+        pCanvas.width = 10; pCanvas.height = 10;
+        const pCtx = pCanvas.getContext('2d');
+        pCtx.strokeStyle = color; pCtx.lineWidth = 1;
+        pCtx.beginPath(); pCtx.moveTo(0, 10); pCtx.lineTo(10, 0); pCtx.stroke();
+        const pattern = ctx.createPattern(pCanvas, 'repeat');
+        ctx.fillStyle = pattern;
+
+        const w = end.x - start.x;
+        const h = end.y - start.y;
+
+        if (type === 'rect') {
+            ctx.rect(start.x, start.y, w, h);
+        } else {
+            const centerX = start.x + w / 2;
+            const centerY = start.y + h / 2;
+            ctx.ellipse(centerX, centerY, Math.abs(w / 2), Math.abs(h / 2), 0, 0, 2 * Math.PI);
+        }
+        ctx.fill();
+        ctx.stroke();
+    },
+
+    drawCurvedArrow(ctx, s, e, c, color, isGhost = false, hasHead = true) {
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y);
+        ctx.quadraticCurveTo(c.x, c.y, e.x, e.y);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = color;
+        ctx.lineCap = 'round';
+        if (isGhost) ctx.setLineDash([5, 5]); else ctx.setLineDash([]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        if (!hasHead) return;
+
+        let dx = e.x - c.x, dy = e.y - c.y;
+        if (Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) { dx = e.x - s.x; dy = e.y - s.y; }
+        const angle = Math.atan2(dy, dx);
+        const headlen = 15;
+
+        ctx.beginPath();
+        ctx.moveTo(e.x, e.y);
+        ctx.lineTo(e.x - headlen * Math.cos(angle - Math.PI / 6), e.y - headlen * Math.sin(angle - Math.PI / 6));
+        ctx.lineTo(e.x - headlen * Math.cos(angle + Math.PI / 6), e.y - headlen * Math.sin(angle + Math.PI / 6));
+        ctx.lineTo(e.x, e.y);
+        ctx.fillStyle = color;
+        ctx.fill();
+    },
+
+    drawCurvedArrowGhost(ctx, state, showHandle = false) {
+        const s = this.scalePoint(state.start);
+        const e = this.scalePoint(state.end);
+        const c = this.scalePoint(state.control);
+        const hasHead = this.currentTool === 'curve';
+        this.drawCurvedArrow(ctx, s, e, c, this.currentColor, true, hasHead);
+
+        if (showHandle || state.phase === 'bending') {
+            ctx.beginPath();
+            ctx.arc(c.x, c.y, 6, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff'; ctx.fill();
+            ctx.lineWidth = 2; ctx.strokeStyle = this.currentColor; ctx.stroke();
+
+            ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(c.x, c.y); ctx.lineTo(e.x, e.y);
+            ctx.strokeStyle = this.currentColor + '40'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+        }
+    },
+
+    undo() {
+        if (this.paths.length > 0) {
+            this.paths.pop();
+            this.redraw();
+        }
+    },
+
+    clearCanvas() {
+        this.paths = [];
+        this.curveState = null;
+        this.redraw();
+    }
+};

@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pizarra Táctica - C.F. Platges de Moncofa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <!-- Iconos Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <iframe id="pdf-frame" style="display:none;"></iframe>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
+    <link rel="stylesheet" href="css/styles.css">
+
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#f3f4f6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-touch-fullscreen" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Pizarra Moncofa">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/icon.png">
+</head>
+
+<body class="min-h-screen text-slate-800 pb-10">
+
+    <!-- TEMPLATE AVATAR -->
+    <template id="player-avatar-template">
+        <div class="player-avatar absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center w-20 h-24"
+            data-player-id="" data-player-role="">
+            <svg width="48" height="72" viewBox="0 0 100 150" class="pointer-events-none drop-shadow-md">
+                <ellipse cx="50" cy="145" rx="25" ry="4" fill="black" opacity="0.3" />
+                <path d="M38,100 L35,135" stroke="#e0ac69" stroke-width="10" stroke-linecap="round" />
+                <path class="player-socks" d="M38,115 L36,138" stroke="var(--team-socks)" stroke-width="10"
+                    stroke-linecap="butt" />
+                <path d="M28,138 L42,138 L42,143 Q35,145 28,143 Z" fill="#1a1a1a" />
+                <path d="M62,100 L65,135" stroke="#e0ac69" stroke-width="10" stroke-linecap="round" />
+                <path class="player-socks" d="M62,115 L64,138" stroke="var(--team-socks)" stroke-width="10"
+                    stroke-linecap="butt" />
+                <path d="M58,138 L72,138 L72,143 Q65,145 58,143 Z" fill="#1a1a1a" />
+                <path d="M25,55 Q15,70 20,90" stroke="#e0ac69" stroke-width="9" stroke-linecap="round" />
+                <path d="M75,55 Q85,70 80,90" stroke="#e0ac69" stroke-width="9" stroke-linecap="round" />
+                <path class="player-shirt" d="M30,45 Q50,40 70,45 L78,95 Q50,100 22,95 Z" fill="var(--team-shirt)" />
+                <path class="player-shirt" d="M30,45 L18,60 L28,65 L35,50" fill="var(--team-shirt)" />
+                <path class="player-shirt" d="M70,45 L82,60 L72,65 L65,50" fill="var(--team-shirt)" />
+                <path class="player-shorts" d="M22,95 L78,95 L80,115 Q50,125 20,115 Z" fill="var(--team-shorts)" />
+                <circle cx="50" cy="30" r="16" fill="#e0ac69" />
+                <path d="M34,25 Q50,10 66,25 Q70,20 65,12 Q50,-5 35,12 Q30,20 34,25" fill="#2d2d2d" />
+                <text class="player-number" x="50" y="80" text-anchor="middle" fill="var(--team-number)" font-size="24"
+                    font-weight="800" style="text-shadow: 1px 1px 0 rgba(0,0,0,0.5);"></text>
+            </svg>
+            <div
+                class="player-name-tag bg-black text-white px-2 py-0.5 rounded shadow border border-slate-700 mt-0 z-20 min-w-[44px] text-center pointer-events-none">
+                <p
+                    class="player-name font-bold whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px] leading-tight tracking-wide text-[9px]">
+                </p>
+            </div>
+            <button
+                class="remove-btn absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold shadow-md hover:bg-red-600 z-50 transition-transform active:scale-90"
+                onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()"
+                onclick="event.stopPropagation(); MoncofaApp.Main.removePlayerFromPitch(this.parentElement.dataset.playerId)">
+                <i data-lucide="x" class="w-3 h-3"></i>
+            </button>
+        </div>
+    </template>
+
+
+
+    <!-- LANDING VIEW (Main Menu) -->
+    <div id="view-landing" class="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-50 relative overflow-hidden">
+        <!-- Decoración de fondo -->
+        <div class="absolute -top-40 -right-40 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div class="absolute -bottom-40 -left-40 w-96 h-96 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div class="absolute top-40 left-20 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+
+        <div class="relative z-10 w-full max-w-4xl flex flex-col items-center">
+            <div class="mb-8 text-center animate-in fade-in slide-in-from-bottom-8 duration-700">
+                <div class="w-24 h-24 md:w-32 md:h-32 mx-auto bg-white rounded-full p-2 shadow-2xl mb-4 border-4 border-white flex items-center justify-center relative group overflow-hidden cursor-pointer" onclick="document.getElementById('logo-upload').click()">
+                    <img id="landing-logo" src="assets/icon.png" class="max-w-full max-h-full object-contain" alt="Logo" onerror="this.src='https://ui-avatars.com/api/?name=CF&background=random'" />
+                    <div class="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white text-[10px] font-bold uppercase backdrop-blur-sm transition-all">Cambiar</div>
+                </div>
+                <h1 class="font-black text-3xl md:text-5xl text-slate-800 tracking-tighter uppercase font-display" id="landing-team-name">Pizarra Táctica</h1>
+                <p class="text-slate-500 font-bold tracking-widest uppercase text-sm mt-2">C.F. Platges de Moncofa</p>
+            </div>
+
+            <div id="app" class="flex flex-col h-full lg:flex-row relative z-10 w-full max-w-[1920px] mx-auto bg-slate-50/50 backdrop-blur-sm lg:shadow-2xl">
+                
+                <!-- Card 1: Pizarra -->
+                <button onclick="MoncofaApp.UI.switchView('view-tactical')" class="group relative bg-white p-4 md:p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 border border-slate-100 overflow-hidden text-left hover:-translate-y-1">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-green-50 to-green-100 rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div class="relative z-10 flex flex-col gap-3">
+                        <div class="bg-green-100 text-green-600 p-3 rounded-xl shadow-sm w-fit"><i data-lucide="layout-dashboard" class="w-6 h-6 md:w-8 md:h-8"></i></div>
+                        <div>
+                            <h2 class="font-black text-base md:text-xl text-slate-800 uppercase tracking-tight mb-1 group-hover:text-green-600 transition-colors leading-tight">Nuevo Partido</h2>
+                            <p class="text-[10px] md:text-xs text-slate-500 font-medium line-clamp-2">Entrar a la pizarra, plantear el partido y realizar cambios.</p>
+                        </div>
+                    </div>
+                </button>
+
+                <!-- Card 2: Historial -->
+                <button onclick="MoncofaApp.UI.switchView('view-matches')" class="group relative bg-white p-4 md:p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 border border-slate-100 overflow-hidden text-left hover:-translate-y-1">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-50 to-blue-100 rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div class="relative z-10 flex flex-col gap-3">
+                        <div class="bg-blue-100 text-blue-600 p-3 rounded-xl shadow-sm w-fit"><i data-lucide="history" class="w-6 h-6 md:w-8 md:h-8"></i></div>
+                        <div>
+                            <h2 class="font-black text-base md:text-xl text-slate-800 uppercase tracking-tight mb-1 group-hover:text-blue-600 transition-colors leading-tight">Partidos</h2>
+                            <p class="text-[10px] md:text-xs text-slate-500 font-medium line-clamp-2">Consultar el historial de resultados y detalles de encuentros.</p>
+                        </div>
+                    </div>
+                </button>
+
+                <!-- Card 3: Estadísticas -->
+                <button onclick="MoncofaApp.UI.switchView('view-stats')" class="group relative bg-white p-4 md:p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 border border-slate-100 overflow-hidden text-left hover:-translate-y-1">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-red-50 to-red-100 rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div class="relative z-10 flex flex-col gap-3">
+                        <div class="bg-red-100 text-red-600 p-3 rounded-xl shadow-sm w-fit"><i data-lucide="bar-chart-2" class="w-6 h-6 md:w-8 md:h-8"></i></div>
+                        <div>
+                            <h2 class="font-black text-base md:text-xl text-slate-800 uppercase tracking-tight mb-1 group-hover:text-red-600 transition-colors leading-tight">Estadísticas</h2>
+                            <p class="text-[10px] md:text-xs text-slate-500 font-medium line-clamp-2">Minutos, goles, asistencias y rendimiento global.</p>
+                        </div>
+                    </div>
+                </button>
+
+                <!-- Card 4: Gestor de Ligas -->
+                <button onclick="MoncofaApp.UI.switchView('view-league')" class="group relative bg-white p-4 md:p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 border border-slate-100 overflow-hidden text-left hover:-translate-y-1">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div class="relative z-10 flex flex-col gap-3">
+                        <div class="bg-yellow-100 text-yellow-600 p-3 rounded-xl shadow-sm w-fit"><i data-lucide="trophy" class="w-6 h-6 md:w-8 md:h-8"></i></div>
+                        <div>
+                            <h2 class="font-black text-base md:text-xl text-slate-800 uppercase tracking-tight mb-1 group-hover:text-yellow-600 transition-colors leading-tight">Gestor Liga</h2>
+                            <p class="text-[10px] md:text-xs text-slate-500 font-medium line-clamp-2">Clasificación, calendario y configuración de rivales.</p>
+                        </div>
+                    </div>
+                </button>
+            </div>
+</div>
+        </div>
+    </div>
+
+    <!-- TACTICAL VIEW (Old Main App) -->
+    <div id="view-tactical" class="hidden">
+    <!-- HEADER (Forcefully Fixed) -->
+    <header
+        class="glass-panel border-b border-white/40 fixed-header-force shadow-sm p-2 md:p-3 backdrop-blur-md transition-all duration-300">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2 md:gap-3">
+            <!-- Logo & Título -->
+            <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+                <button onclick="MoncofaApp.UI.switchView('view-landing')" class="md:hidden flex-shrink-0 p-2 bg-slate-100 text-slate-600 rounded-full hover:bg-slate-200 transition-colors shadow-sm"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
+                <button onclick="MoncofaApp.UI.switchView('view-landing')" class="hidden md:flex flex-shrink-0 bg-slate-800 text-white px-3 py-1.5 rounded-lg shadow-md text-xs font-bold items-center gap-1 hover:bg-slate-700 transition-colors"><i data-lucide="arrow-left" class="w-3 h-3"></i> MENÚ</button>
+                <div class="flex items-center gap-3">
+                    <div class="relative group cursor-pointer transform hover:scale-105 transition-transform duration-300"
+                        onclick="document.getElementById('logo-upload').click()">
+                        <img id="team-logo" src="" alt="Escudo"
+                            class="w-10 h-14 md:w-12 md:h-16 object-contain drop-shadow-lg" />
+                        <div
+                            class="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 rounded-lg text-white text-[9px] font-black tracking-widest uppercase pointer-events-none transition-all backdrop-blur-[2px]">
+                            CAMBIAR</div>
+                    </div>
+                    <input type="file" id="logo-upload" hidden accept="image/*"
+                        onchange="MoncofaApp.Main.handleLogoUpload(this)">
+                    <div class="flex flex-col">
+                        <h1 class="font-black text-lg md:text-2xl text-slate-800 tracking-tighter leading-none font-display uppercase flex items-center gap-2"
+                            id="app-team-name">
+                            C.F. PLATGES DE MONCOFA
+                            <span id="sync-led" class="inline-block w-2.5 h-2.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]" title="Iniciando conexión..."></span>
+                        </h1>
+                        <button onclick="MoncofaApp.Main.showKitConfig()"
+                            class="text-[10px] md:text-xs text-slate-500 hover:text-blue-600 font-bold flex items-center gap-1.5 mt-0.5 md:mt-1 transition-colors w-fit tracking-wide uppercase"><i
+                                data-lucide="settings-2" class="w-3 h-3 md:w-3.5 md:h-3.5"></i> Configuración</button>
+                    </div>
+                </div>
+
+                <!-- Mobile Controls (Timer) moved here for better space usage? No, keep it standard for now. -->
+            </div>
+
+            <!-- Marcador Wrapper (Scrollable on extremely small screens if needed, otherwise centered) -->
+            <div
+                class="flex flex-col items-center w-full md:w-auto transform scale-90 md:scale-100 origin-center md:origin-right">
+
+                <div class="flex items-center gap-3 md:gap-5 justify-center w-full">
+                    <!-- Home Logo Container -->
+                    <div id="home-team-display" class="w-12 md:w-16 flex justify-center"></div>
+
+                    <div class="flex flex-col w-auto min-w-[140px] md:min-w-[160px]">
+                        <!-- Scoreboard Glass (Narrower) -->
+                        <div
+                            class="scoreboard-glass bg-slate-900 text-white px-2 py-1 md:px-3 md:py-2 rounded-t-xl flex items-center justify-center gap-2 md:gap-3 font-mono shadow-2xl border border-white/10 w-full relative">
+                            <!-- Shine effect -->
+                            <div class="absolute top-0 left-0 w-full h-1/2 bg-white/5 pointer-events-none"></div>
+                            <!-- JS Fills This -->
+                        </div>
+
+                        <div
+                            class="flex items-center bg-slate-800 text-white rounded-b-xl overflow-hidden text-[10px] uppercase font-bold w-full border-x border-b border-white/10 shadow-lg">
+                            <button id="period-1-btn" onclick="MoncofaApp.Main.switchPeriod(1)"
+                                class="period-btn active flex-1 py-1.5 md:py-2 transition-colors tracking-wider text-center hover:bg-slate-700">1ª
+                                P</button>
+                            <button id="period-2-btn" onclick="MoncofaApp.Main.switchPeriod(2)"
+                                class="period-btn inactive flex-1 py-1.5 md:py-2 transition-colors tracking-wider text-center hover:bg-slate-700">2ª
+                                P</button>
+                        </div>
+                    </div>
+
+                    <!-- Away Logo Container -->
+                    <div id="away-team-display" class="w-12 md:w-16 flex justify-center"></div>
+                </div>
+
+            </div>
+
+            <!-- Controles (Horizontal scroll on very small mobile if items overflow) -->
+            <div class="flex gap-2 justify-center w-full md:w-auto mt-1 md:mt-0">
+                <button id="theme-toggle-btn" onclick="MoncofaApp.UI.toggleDarkMode()"
+                    class="p-2 md:p-3 bg-white rounded-full shadow-lg hover:bg-slate-100 hover:scale-105 transition-all active:scale-95 border border-slate-200">
+                    <i data-lucide="moon" class="w-4 h-4 md:w-5 md:h-5 text-slate-600"></i>
+                </button>
+
+                <button id="toggle-timer-btn" onclick="MoncofaApp.Main.toggleTimer()"
+                    class="p-2 md:p-3 rounded-full shadow-lg bg-green-500 text-white hover:bg-green-400 hover:shadow-green-500/30 hover:scale-105 transition-all active:scale-95 border-2 border-white/20"><i
+                        data-lucide="play" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i></button>
+
+                <button onclick="MoncofaApp.Main.stopTimer()"
+                    class="p-2 md:p-3 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-500 hover:scale-105 transition-all active:scale-95 border border-white/20"
+                    title="Finalizar Tiempo"><i data-lucide="square"
+                        class="w-4 h-4 md:w-5 md:h-5 fill-current"></i></button>
+
+                <button onclick="MoncofaApp.Main.resetTimer()"
+                    class="p-2 md:p-3 bg-white text-slate-600 rounded-full shadow-lg hover:bg-slate-50 hover:text-blue-600 hover:scale-105 transition-all active:scale-95 border border-slate-200"><i
+                        data-lucide="rotate-ccw" class="w-4 h-4 md:w-5 md:h-5"></i></button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN -->
+    <main class="w-full max-w-[600px] mx-auto p-4 pt-4 flex flex-col gap-12 relative">
+        <!-- Centro: Pizarra -->
+        <div class="w-full flex flex-col gap-6 items-center order-1 mx-auto">
+            <div class="glass-panel p-2 md:p-4 rounded-2xl shadow-inner border-2 border-white/20 w-full max-w-md mx-auto">
+                <div class='flex flex-wrap md:flex-nowrap justify-between items-center mb-4 gap-2'>
+                    <!-- SELECTOR DE FORMACIÓN -->
+                    <div class="flex items-center gap-2 w-full md:w-auto">
+                        <i data-lucide="layout-dashboard" class="w-5 h-5 text-slate-500"></i>
+                        <select id="formation-select" onchange="MoncofaApp.Main.changeFormation(this.value)"
+                            class="bg-white border border-slate-300 text-slate-800 text-lg font-extrabold rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-auto p-1.5 shadow-sm">
+                            <option value="3-3-1" selected>3-3-1</option>
+                            <option value="4-2-1">4-2-1</option>
+                            <option value="2-3-2">2-3-2</option>
+                            <option value="3-2-2">3-2-2</option>
+                            <option value="2-4-1">2-4-1</option>
+                            <option value="3-4-0">3-4-0</option>
+                            <option value="4-3-0">4-3-0</option>
+                        </select>
+                    </div>
+
+                    <button onclick="document.getElementById('pizarra-toolbar').classList.toggle('hidden')" class="px-3 py-1.5 md:py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 flex items-center gap-1 transition-colors whitespace-nowrap shadow-sm border border-slate-200">
+                        <i data-lucide="wrench" class="w-4 h-4 md:w-3 md:h-3"></i> HERRAMIENTAS
+                    </button>
+                </div>
+                
+                <!-- Scrollable Toolbar for Mobile (Hidden by default) -->
+                <div id="pizarra-toolbar" class="hidden flex gap-2 items-center overflow-x-auto w-full pb-2 md:pb-0 mb-4 no-scrollbar border-t border-slate-100 pt-3">
+                    <button onclick="MoncofaApp.Drawing.toggleDrawingMode(this)"
+                        class="px-3 py-1.5 md:py-1 bg-pink-600 text-white rounded-lg text-xs font-bold hover:bg-pink-700 flex items-center gap-1 transition-colors shadow-sm whitespace-nowrap"><i
+                            data-lucide="pen-tool" class="w-4 h-4 md:w-3 md:h-3"></i> DIBUJAR</button>
+                    <button onclick="MoncofaApp.TacticsManager.showLoadModal()"
+                        class="px-3 py-1.5 md:py-1 bg-fuchsia-600 text-white rounded-lg text-xs font-bold hover:bg-fuchsia-700 flex items-center gap-1 transition-colors shadow-sm whitespace-nowrap"><i
+                            data-lucide="library" class="w-4 h-4 md:w-3 md:h-3"></i> TÁCTICAS</button>
+                    <button onclick="MoncofaApp.Main.downloadLineupImage()"
+                        class="px-3 py-1.5 md:py-1 bg-teal-600 text-white rounded-lg text-xs font-bold hover:bg-teal-700 flex items-center gap-1 transition-colors shadow-sm whitespace-nowrap"><i
+                            data-lucide="image" class="w-4 h-4 md:w-3 md:h-3"></i> JPG</button>
+                    <button onclick="MoncofaApp.Main.clearPitch()"
+                        class="px-3 py-1.5 md:py-1 bg-red-100 text-red-700 rounded-lg text-xs font-bold hover:bg-red-200 flex items-center gap-1 transition-colors whitespace-nowrap"><i
+                            data-lucide="trash-2" class="w-4 h-4 md:w-3 md:h-3"></i></button>
+
+                    <div class="h-6 w-px bg-slate-300 mx-1"></div>
+
+                    <button onclick="MoncofaApp.Animation.addFrame()"
+                        class="px-3 py-1.5 md:py-1 bg-violet-600 text-white rounded-lg text-xs font-bold hover:bg-violet-700 flex items-center gap-1 transition-colors shadow-sm whitespace-nowrap"><i
+                            data-lucide="camera" class="w-4 h-4 md:w-3 md:h-3"></i> <span id="anim-frame-count"
+                            class="bg-white text-violet-600 text-[10px] px-1.5 rounded-full">0</span></button>
+
+                    <button id="anim-play-btn" onclick="MoncofaApp.Animation.togglePlay()"
+                        class="px-3 py-1.5 md:py-1 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 flex items-center gap-1 transition-colors shadow-sm whitespace-nowrap"><i
+                            data-lucide="play" class="w-4 h-4 md:w-3 md:h-3 fill-white"></i></button>
+
+                    <select onchange="MoncofaApp.Animation.setSpeed(this.value)"
+                        class="bg-violet-100 text-violet-700 text-xs font-bold rounded-lg border-none py-1.5 md:py-1 px-1 focus:ring-0 cursor-pointer outline-none">
+                        <option value="0.25">0.25x</option>
+                        <option value="0.5">0.5x</option>
+                        <option value="1" selected>1x</option>
+                    </select>
+
+                    <button onclick="MoncofaApp.Animation.clearFrames()"
+                        class="px-3 py-1.5 md:py-1 bg-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-300 flex items-center gap-1 transition-colors shadow-sm whitespace-nowrap"><i
+                            data-lucide="file-x" class="w-4 h-4 md:w-3 md:h-3"></i></button>
+
+                </div>
+
+                <!-- PIZARRA - Escala automáticamente según el ancho del contenedor -->
+                <div id="pitch" class="pitch w-full h-auto mx-auto aspect-[686/1024] rounded-2xl shadow-2xl border-[4px] md:border-[6px] border-white relative overflow-hidden ring-1 ring-black/10 select-none">
+                    <div class="pitch-line absolute inset-5 border-2 border-white/80 pointer-events-none mix-blend-overlay"></div>
+                    <div class="pitch-line absolute top-1/2 left-5 right-5 h-0.5 bg-white/80 pointer-events-none mix-blend-overlay"></div>
+                    <div class="pitch-line absolute top-1/2 left-1/2 w-28 h-28 border-2 border-white/80 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none mix-blend-overlay"></div>
+                    <div class="pitch-line absolute top-5 left-1/2 w-[60%] h-[15%] border-2 border-t-0 border-white/80 -translate-x-1/2 pointer-events-none mix-blend-overlay"></div>
+                    <div class="pitch-line absolute top-5 left-1/2 w-[30%] h-[6%] border-2 border-t-0 border-white/80 -translate-x-1/2 pointer-events-none mix-blend-overlay"></div>
+                    <div class="pitch-line absolute bottom-5 left-1/2 w-[60%] h-[15%] border-2 border-b-0 border-white/80 -translate-x-1/2 pointer-events-none mix-blend-overlay"></div>
+                    <div class="pitch-line absolute bottom-5 left-1/2 w-[30%] h-[6%] border-2 border-b-0 border-white/80 -translate-x-1/2 pointer-events-none mix-blend-overlay"></div>
+                </div>
+            </div> <!-- End of glass-panel -->
+            
+            <!-- Botón ALINEACIÓN -->
+            <div class="flex justify-center -mt-2 mb-2 w-full max-w-sm mx-auto">
+                <button onclick="MoncofaApp.Main.saveStartingLineup()"
+                    class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-xl shadow-lg border-b-4 border-indigo-800 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2 w-full justify-center">
+                    <i data-lucide="save" class="w-5 h-5"></i> GUARDAR ALINEACIÓN INICIAL
+                </button>
+            </div>
+
+            <!-- Botones Gol / Cambio / Penalti -->
+            <div class="grid grid-cols-3 gap-2 md:gap-4 w-full max-w-lg mx-auto">
+                <button onclick="MoncofaApp.Main.showGoalModal()"
+                    class="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white font-black py-4 rounded-2xl shadow-xl shadow-green-200 flex justify-center items-center gap-1 md:gap-2 transform active:scale-95 transition-all w-full border-b-4 border-green-700 active:border-b-0 active:translate-y-1"><i
+                        data-lucide="trophy" class="w-4 h-4 md:w-5 md:h-5"></i> <span class="text-xs md:text-base">GOL</span></button>
+                <button onclick="MoncofaApp.Main.showSubModal()"
+                    class="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-black py-4 rounded-2xl shadow-xl shadow-blue-200 flex justify-center items-center gap-1 md:gap-2 transform active:scale-95 transition-all w-full border-b-4 border-blue-700 active:border-b-0 active:translate-y-1"><i
+                        data-lucide="replace" class="w-4 h-4 md:w-5 md:h-5"></i> <span class="text-xs md:text-base">CAMBIO</span></button>
+                <button onclick="MoncofaApp.Main.showPenaltyModal()"
+                    class="bg-gradient-to-r from-amber-500 to-orange-400 hover:from-orange-400 hover:to-amber-500 text-white font-black py-4 rounded-2xl shadow-xl shadow-orange-200 flex justify-center items-center gap-1 md:gap-2 transform active:scale-95 transition-all w-full border-b-4 border-orange-600 active:border-b-0 active:translate-y-1"><i
+                        data-lucide="circle-dashed" class="w-4 h-4 md:w-5 md:h-5"></i> <span class="text-xs md:text-base">PENALTI</span></button>
+            </div>
+        </div>
+
+        <!-- Izquierda: Convocatoria -->
+        <div class="w-full flex flex-col gap-6 order-2 mx-auto">
+            <div
+                class="w-full max-w-md mx-auto glass-panel rounded-2xl shadow-lg border border-white/40 flex flex-col overflow-hidden max-h-[600px]">
+                <div
+                    class="bg-white/50 p-4 border-b border-white/20 flex justify-between items-center sticky top-0 z-10 backdrop-blur-md">
+                    <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-wide"><i
+                            data-lucide="users" class="w-4 h-4 text-blue-600"></i> CONVOCATORIA</h3>
+                    <div class="flex items-center gap-2">
+                        <button onclick="MoncofaApp.SquadManager.openManager()"
+                            class="text-[10px] bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded shadow-sm font-bold border border-blue-600 transition-colors uppercase flex items-center gap-1 shadow-md">
+                            <i data-lucide="settings-2" class="w-3 h-3"></i> Gestionar
+                        </button>
+                        <span id="bench-count"
+                            class="text-[10px] bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-bold shadow-sm border border-slate-200">16
+                            DISP.</span>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-y-auto p-2 space-y-2 bg-slate-50/30 min-h-0">
+                    <div id="squad-list" class="space-y-1.5"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Derecha: Acta del Partido -->
+        <div class="w-full flex flex-col gap-6 order-3 mx-auto">
+            <div
+                class="w-full max-w-md mx-auto glass-panel rounded-2xl shadow-lg border border-white/40 flex-1 flex flex-col min-h-[400px] max-h-[600px] overflow-hidden">
+                <div
+                    class="bg-white/50 p-3 border-b border-white/20 font-bold text-slate-700 text-sm flex items-center justify-between shadow-sm sticky top-0 z-10 backdrop-blur-md uppercase tracking-wide">
+                    <span class='flex items-center gap-2'><i data-lucide="history" class="w-4 h-4 text-slate-500"></i>
+                        Acta del Partido</span>
+                    <div class="flex items-center gap-2">
+                        <button onclick="MoncofaApp.Main.finishAndSaveMatch()"
+                            class="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded shadow hover:bg-green-200 transition-colors flex items-center gap-1 font-bold shadow-sm border border-green-200"
+                            title="Finalizar y Guardar en BD">
+                            <i data-lucide="save" class="w-3 h-3"></i> GUARDAR PARTIDO
+                        </button>
+                        <button onclick="MoncofaApp.Main.resetMatch()"
+                            class="text-[10px] bg-red-100 text-red-600 px-2 py-1 rounded shadow hover:bg-red-200 transition-colors flex items-center gap-1 font-bold"
+                            title="Empezar Nuevo Partido (Borrar Progreso)">
+                            <i data-lucide="trash-2" class="w-3 h-3"></i> LIMPIAR
+                        </button>
+                        <button onclick="MoncofaApp.Main.downloadPDF()"
+                            class="text-[10px] bg-slate-800 text-white px-2 py-1 rounded shadow hover:bg-slate-700 transition-colors flex items-center gap-1 font-bold"
+                            title="Descargar Acta"><i data-lucide="file-down" class="w-3 h-3"></i> PDF</button>
+                    </div>
+                </div>
+                <div id="log-container" class="flex-1 overflow-y-auto scroll-smooth bg-slate-50/30 min-h-0">
+                    <table class="w-full text-xs text-left">
+                        <tbody id="match-log" class="divide-y divide-slate-100/50"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+
+    <!-- Resumen al pie -->
+    <section class="max-w-7xl mx-auto p-4 mt-6 mb-12">
+        <h2 class="text-xl font-black text-slate-800 mb-4 border-b pb-2 flex items-center gap-2"><i
+                data-lucide="clipboard-check" class="w-5 h-5 text-slate-400"></i> Resumen</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="glass-panel p-4 rounded-xl shadow border border-green-100 bg-green-50/30">
+                <h3 class="font-bold text-green-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><i
+                        data-lucide="check-circle" class="w-4 h-4"></i> Titulares (<span id="starters-count">0</span>)
+                </h3>
+                <ul id="starters-list" class="space-y-1 text-xs font-medium text-slate-600"></ul>
+            </div>
+            <div class="glass-panel p-4 rounded-xl shadow border border-blue-100 bg-blue-50/30">
+                <h3 class="font-bold text-blue-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><i
+                        data-lucide="shirt" class="w-4 h-4"></i> Suplentes (<span id="bench-list-count">0</span>)</h3>
+                <ul id="bench-list" class="space-y-1 text-xs font-medium text-slate-600"></ul>
+            </div>
+            <div class="glass-panel p-4 rounded-xl shadow border border-red-100 bg-red-50/30">
+                <h3 class="font-bold text-red-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><i
+                        data-lucide="x-circle" class="w-4 h-4"></i> No Convocados (<span id="uncalled-count">0</span>)
+                </h3>
+                <ul id="uncalled-list" class="space-y-1 text-xs font-medium text-slate-600"></ul>
+            </div>
+        </div>
+    </section>
+    </div> <!-- END VIEW TACTICAL -->
+
+    <!-- MATCHES VIEW (Historial) -->
+    <div id="view-matches" class="hidden min-h-screen bg-slate-50 pb-10">
+        <header class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-40 p-4">
+            <div class="max-w-4xl mx-auto flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <button onclick="MoncofaApp.UI.switchView('view-landing')" class="p-2 bg-slate-100 text-slate-600 rounded-full hover:bg-slate-200 transition-colors"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
+                    <h2 class="font-black text-xl text-slate-800 uppercase flex items-center gap-2"><i data-lucide="history" class="w-6 h-6 text-blue-600"></i> Partidos Guardados</h2>
+                </div>
+            </div>
+        </header>
+        <main class="max-w-4xl mx-auto p-4 mt-4">
+            <div id="matches-content-area" class="bg-white rounded-2xl shadow-xl border border-slate-100 p-4 md:p-6 min-h-[60vh]">
+                <!-- Filled via JS -->
+            </div>
+        </main>
+    </div>
+
+    <!-- LEAGUE VIEW (Gestor de Liga) -->
+    <div id="view-league" class="hidden min-h-screen bg-slate-50 pb-10">
+        <header class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-40">
+            <div class="p-4 max-w-6xl mx-auto flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <button onclick="MoncofaApp.UI.switchView('view-landing')" class="p-2 bg-slate-100 text-slate-600 rounded-full hover:bg-slate-200 transition-colors"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
+                    <h2 class="font-black text-xl text-slate-800 uppercase flex items-center gap-2">
+                        <i data-lucide="trophy" class="w-6 h-6 text-yellow-500"></i> <span id="league-title-display">LIGA</span>
+                    </h2>
+                </div>
+            </div>
+            <!-- Tab Navigation -->
+            <div class="max-w-6xl mx-auto px-4 overflow-x-auto hide-scrollbar">
+                <div class="flex space-x-6 border-b border-slate-200 whitespace-nowrap" id="league-tabs">
+                    <button onclick="MoncofaApp.LeagueUI.switchTab('dashboard')" class="league-tab active pb-3 font-bold text-sm text-yellow-600 border-b-2 border-yellow-600 px-1">Resumen</button>
+                    <button onclick="MoncofaApp.LeagueUI.switchTab('standings')" class="league-tab pb-3 font-bold text-sm text-slate-500 hover:text-slate-800 px-1">Clasificación</button>
+                    <button onclick="MoncofaApp.LeagueUI.switchTab('calendar')" class="league-tab pb-3 font-bold text-sm text-slate-500 hover:text-slate-800 px-1">Calendario</button>
+                    <button onclick="MoncofaApp.LeagueUI.switchTab('teams')" class="league-tab pb-3 font-bold text-sm text-slate-500 hover:text-slate-800 px-1">Equipos</button>
+                    <button onclick="MoncofaApp.LeagueUI.switchTab('squad')" class="league-tab pb-3 font-bold text-sm text-slate-500 hover:text-slate-800 px-1">Plantilla</button>
+                    <button onclick="MoncofaApp.LeagueUI.switchTab('settings')" class="league-tab pb-3 font-bold text-sm text-slate-500 hover:text-slate-800 px-1">Ajustes</button>
+                </div>
+            </div>
+        </header>
+        <main class="max-w-6xl mx-auto p-4 mt-4">
+            <!-- Content Area -->
+            <div id="league-content-area" class="bg-white rounded-2xl shadow-xl border border-slate-100 min-h-[60vh] overflow-hidden">
+                <!-- Filled via JS LeagueUI -->
+            </div>
+        </main>
+    </div>
+
+    <!-- STATS VIEW (Estadísticas) -->
+    <!-- Vista Estadísticas (NUEVO DISEÑO) -->
+    <div id="view-stats" class="hidden min-h-screen bg-slate-50 pb-10">
+        <header class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-40">
+            <div class="p-4 max-w-6xl mx-auto flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <button onclick="MoncofaApp.UI.switchView('view-landing')" class="p-2 bg-slate-100 text-slate-600 rounded-full hover:bg-slate-200 transition-colors"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
+                    <h2 class="font-black text-xl text-slate-800 uppercase flex items-center gap-2"><i data-lucide="bar-chart-2" class="w-6 h-6 text-emerald-600"></i> Estadísticas</h2>
+                </div>
+                <button onclick="MoncofaApp.DB.clearAllData()" class="text-xs bg-red-50 text-red-600 px-3 py-1.5 rounded-lg font-bold hover:bg-red-100 flex items-center gap-1 transition-colors border border-red-200 shadow-sm">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i> Reset
+                </button>
+            </div>
+            <!-- Tab Navigation -->
+            <div class="max-w-6xl mx-auto px-4 overflow-x-auto hide-scrollbar">
+                <div class="flex space-x-6 border-b border-slate-200 whitespace-nowrap" id="stats-tabs">
+                    <button onclick="MoncofaApp.StatsUI.switchTab('individual')" class="stats-tab active pb-3 font-bold text-sm text-emerald-600 border-b-2 border-emerald-600 px-1">Individuales</button>
+                    <button onclick="MoncofaApp.StatsUI.switchTab('global')" class="stats-tab pb-3 font-bold text-sm text-slate-500 hover:text-slate-800 px-1">Equipo (Global)</button>
+                    <button onclick="MoncofaApp.StatsUI.switchTab('rankings')" class="stats-tab pb-3 font-bold text-sm text-slate-500 hover:text-slate-800 px-1">Rankings</button>
+                    <button onclick="MoncofaApp.StatsUI.switchTab('goalsList')" class="stats-tab pb-3 font-bold text-sm text-slate-500 hover:text-slate-800 px-1">Goles</button>
+                    <button onclick="MoncofaApp.StatsUI.switchTab('rests')" class="stats-tab pb-3 font-bold text-sm text-slate-500 hover:text-slate-800 px-1">Descansos</button>
+                    <button onclick="MoncofaApp.StatsUI.switchTab('history')" class="stats-tab pb-3 font-bold text-sm text-slate-500 hover:text-slate-800 px-1">Historial</button>
+                </div>
+            </div>
+        </header>
+        <main class="max-w-6xl mx-auto p-4 mt-4">
+            <div id="stats-content-area" class="bg-white rounded-2xl shadow-xl border border-slate-100 min-h-[60vh] overflow-hidden">
+                <!-- Filled via JS StatsUI -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Upload Act Modal -->
+    <div id="upload-act-modal" class="fixed inset-0 bg-black/60 z-[9999] hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md border-t-8 border-purple-500 animate-in zoom-in duration-200">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-lg flex items-center gap-2 text-slate-800 uppercase tracking-tighter"><i data-lucide="upload" class="w-5 h-5 text-purple-600"></i> Subir Acta</h3>
+                <button onclick="document.getElementById('upload-act-modal').classList.add('hidden'); document.getElementById('upload-act-modal').classList.remove('flex');" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <form onsubmit="event.preventDefault(); MoncofaApp.UI.handleUploadAct();" class="space-y-4">
+                <input type="hidden" id="act-match-id">
+                <input type="hidden" id="act-date">
+                <input type="hidden" id="act-title">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Archivo (Foto o PDF)</label>
+                    <input type="file" id="act-file" accept="image/*,application/pdf" required class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100">
+                </div>
+                <div class="pt-4 border-t border-slate-100 flex justify-end gap-2">
+                    <button type="button" onclick="document.getElementById('upload-act-modal').classList.add('hidden'); document.getElementById('upload-act-modal').classList.remove('flex');" class="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
+                    <button type="submit" id="act-submit-btn" class="px-4 py-2 text-sm font-bold bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow-md flex items-center gap-2">Guardar Acta</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/constants.js"></script>
+    <script src="js/logo-data.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/squad-manager.js"></script>
+    <script src="js/drawing_new.js?v=9999"></script>
+    <script src="js/animation.js"></script> <!-- Animation Module -->
+    <script src="js/tactics-manager.js"></script>
+    <script src="js/ui.js?v=2.5"></script>
+    <script src="js/export-manager.js?v=3.2"></script>
+    <script src="js/drag-drop-manager.js"></script>
+    <script src="js/db.js"></script>
+    <script src="js/sync-manager.js"></script>
+    <script src="js/stats-engine.js?v=3.6"></script>
+    <script src="js/stats-ui.js?v=4.1"></script>
+    <script src="js/league-manager.js"></script>
+    <script src="js/league-ui.js?v=4.0"></script>
+    <script src="js/league-importer.js"></script>
+    <script src="js/ipad-data-blob.js"></script>
+    <script src="js/ipad-importer.js?v=3.6"></script>
+    <!-- Modal Genérico (Moved to bottom & High Z-Index) -->
+    <div id="action-modal"
+        class="fixed inset-0 bg-black/60 z-[9999] hidden items-start justify-center pt-40 p-4 backdrop-blur-sm overflow-y-auto">
+        <div id="modal-content"
+            class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm border-t-8 border-blue-500 animate-in zoom-in duration-200">
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-[99999] flex flex-col gap-2 pointer-events-none max-w-sm w-full px-4 md:px-0"></div>
+
+    <script src="js/main.js?v=3.6"></script>
+</body>
+
+</html>

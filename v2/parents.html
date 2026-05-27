@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Portal de Padres - C.F. Platges de Moncofa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <!-- Iconos Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top right, rgba(244, 63, 94, 0.05), transparent 600px),
+                        radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.05), transparent 600px),
+                        #f8fafc;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        /* Hide scrollbar for IE, Edge and Firefox */
+        .hide-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+    </style>
+</head>
+
+<body class="min-h-screen text-slate-800 pb-16">
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[9999] flex flex-col items-center justify-center transition-all duration-500">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-4 max-w-xs border border-slate-100">
+            <div class="relative w-16 h-16">
+                <div class="absolute inset-0 rounded-full border-4 border-emerald-100"></div>
+                <div class="absolute inset-0 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin"></div>
+            </div>
+            <p class="font-black text-slate-800 text-center uppercase tracking-tight text-sm">Cargando Datos de la Liga...</p>
+            <p class="text-xs text-slate-400 text-center font-medium">Conectando con Supabase</p>
+        </div>
+    </div>
+
+    <!-- Main Header -->
+    <header class="glass-panel sticky top-0 z-40 border-b border-slate-200/50 shadow-sm backdrop-blur-md p-4">
+        <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-white rounded-full p-1.5 shadow-md border border-slate-100 flex items-center justify-center">
+                    <img src="assets/icon.png" class="max-w-full max-h-full object-contain" alt="Logo Platges de Moncofa" onerror="this.src='https://ui-avatars.com/api/?name=CF&background=random'" />
+                </div>
+                <div>
+                    <h1 class="font-black text-xl md:text-2xl text-slate-800 tracking-tighter uppercase leading-tight">Portal de Padres</h1>
+                    <p class="text-xs font-bold text-slate-500 uppercase tracking-widest leading-none">C.F. Platges de Moncofa</p>
+                </div>
+            </div>
+            
+            <!-- Season Selector Container -->
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Temporada:</span>
+                <select id="season-selector" onchange="MoncofaParents.UI.changeSeason(this.value)" class="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-emerald-500">
+                    <!-- Loaded via JS -->
+                </select>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto p-4 mt-6">
+        <!-- Tabs Navigation -->
+        <div class="flex space-x-2 bg-slate-200/60 p-1 rounded-xl mb-6 max-w-md mx-auto shadow-inner">
+            <button onclick="MoncofaParents.UI.switchTab('standings')" id="tab-btn-standings" class="tab-btn flex-1 py-2.5 text-center text-xs font-black uppercase tracking-wider rounded-lg transition-all duration-300 bg-white text-slate-800 shadow-sm">
+                Clasificación
+            </button>
+            <button onclick="MoncofaParents.UI.switchTab('team-stats')" id="tab-btn-team-stats" class="tab-btn flex-1 py-2.5 text-center text-xs font-black uppercase tracking-wider rounded-lg transition-all duration-300 text-slate-500 hover:text-slate-800">
+                Equipo (Grupal)
+            </button>
+            <button onclick="MoncofaParents.UI.switchTab('player-stats')" id="tab-btn-player-stats" class="tab-btn flex-1 py-2.5 text-center text-xs font-black uppercase tracking-wider rounded-lg transition-all duration-300 text-slate-500 hover:text-slate-800">
+                Jugadores
+            </button>
+        </div>
+
+        <!-- TAB: STANDINGS (Clasificación) -->
+        <section id="tab-content-standings" class="tab-content">
+            <!-- Title / Header of competition -->
+            <div class="bg-white border border-slate-200 rounded-3xl shadow-xl overflow-hidden mb-6">
+                <div class="bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-6 relative overflow-hidden">
+                    <div class="absolute right-0 top-0 translate-x-12 -translate-y-12 w-48 h-48 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
+                    <div class="flex items-center gap-4 relative z-10">
+                        <div id="league-badge" class="w-16 h-16 bg-white/25 rounded-2xl flex items-center justify-center p-2 backdrop-blur-md border border-white/20">
+                            <i data-lucide="trophy" class="w-8 h-8 text-white"></i>
+                        </div>
+                        <div>
+                            <h2 id="league-name" class="font-black text-2xl uppercase tracking-tight">C.F. Platges de Moncofa</h2>
+                            <p id="league-category" class="text-xs font-bold text-emerald-100 uppercase tracking-widest mt-0.5">Clasificación General de la Liga</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse min-w-[700px]">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-100 text-slate-400 font-bold text-[10px] uppercase tracking-widest">
+                                <th class="py-4 px-6 text-center w-12">Pos</th>
+                                <th class="py-4 px-4">Equipo</th>
+                                <th class="py-4 px-4 text-center">PJ</th>
+                                <th class="py-4 px-4 text-center">PG</th>
+                                <th class="py-4 px-4 text-center">PE</th>
+                                <th class="py-4 px-4 text-center">PP</th>
+                                <th class="py-4 px-4 text-center">GF</th>
+                                <th class="py-4 px-4 text-center">GC</th>
+                                <th class="py-4 px-4 text-center">DG</th>
+                                <th class="py-4 px-6 text-center bg-emerald-50 text-emerald-700 font-black">Pts</th>
+                            </tr>
+                        </thead>
+                        <tbody id="standings-table-body">
+                            <!-- Filled dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB: TEAM STATS (Grupal) -->
+        <section id="tab-content-team-stats" class="tab-content hidden">
+            <!-- Grid of Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <!-- Card 1: Matches -->
+                <div class="bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm text-center flex flex-col justify-center items-center">
+                    <div class="bg-blue-50 text-blue-600 p-3 rounded-xl mb-3"><i data-lucide="play" class="w-6 h-6"></i></div>
+                    <span id="ts-played" class="font-black text-3xl text-slate-800">0</span>
+                    <span class="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">Partidos Jugados</span>
+                </div>
+                <!-- Card 2: Goals For -->
+                <div class="bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm text-center flex flex-col justify-center items-center">
+                    <div class="bg-emerald-50 text-emerald-600 p-3 rounded-xl mb-3"><i data-lucide="zap" class="w-6 h-6"></i></div>
+                    <span id="ts-goals-for" class="font-black text-3xl text-emerald-600">0</span>
+                    <span class="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">Goles a Favor</span>
+                </div>
+                <!-- Card 3: Goals Against -->
+                <div class="bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm text-center flex flex-col justify-center items-center">
+                    <div class="bg-red-50 text-red-600 p-3 rounded-xl mb-3"><i data-lucide="shield-alert" class="w-6 h-6"></i></div>
+                    <span id="ts-goals-against" class="font-black text-3xl text-red-600">0</span>
+                    <span class="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">Goles en Contra</span>
+                </div>
+                <!-- Card 4: Clean Sheets -->
+                <div class="bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm text-center flex flex-col justify-center items-center">
+                    <div class="bg-purple-50 text-purple-600 p-3 rounded-xl mb-3"><i data-lucide="shield-check" class="w-6 h-6"></i></div>
+                    <span id="ts-clean-sheets" class="font-black text-3xl text-purple-600">0</span>
+                    <span class="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">Porterías a Cero</span>
+                </div>
+            </div>
+
+            <!-- Detailed Team Record -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Form & Results Summary -->
+                <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                    <h3 class="font-black text-lg text-slate-800 uppercase border-b pb-3 mb-4 flex items-center gap-2">
+                        <i data-lucide="bar-chart-3" class="w-5 h-5 text-emerald-500"></i> Rendimiento Grupal
+                    </h3>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center py-2 border-b border-slate-100">
+                            <span class="font-bold text-sm text-slate-500">Victorias</span>
+                            <span id="team-wins" class="bg-emerald-100 text-emerald-700 font-black px-2.5 py-0.5 rounded text-sm">0</span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b border-slate-100">
+                            <span class="font-bold text-sm text-slate-500">Empates</span>
+                            <span id="team-draws" class="bg-slate-100 text-slate-700 font-black px-2.5 py-0.5 rounded text-sm">0</span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b border-slate-100">
+                            <span class="font-bold text-sm text-slate-500">Derrotas</span>
+                            <span id="team-losses" class="bg-red-100 text-red-700 font-black px-2.5 py-0.5 rounded text-sm">0</span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b border-slate-100">
+                            <span class="font-bold text-sm text-slate-500">Promedio Goles Marcados</span>
+                            <span id="team-avg-gf" class="font-black text-slate-700 text-sm">0.0</span>
+                        </div>
+                        <div class="flex justify-between items-center py-2">
+                            <span class="font-bold text-sm text-slate-500">Promedio Goles Recibidos</span>
+                            <span id="team-avg-gc" class="font-black text-slate-700 text-sm">0.0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Last Matches and Next Match -->
+                <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <h3 class="font-black text-lg text-slate-800 uppercase border-b pb-3 mb-4 flex items-center gap-2">
+                            <i data-lucide="history" class="w-5 h-5 text-indigo-500"></i> Último Partido
+                        </h3>
+                        <div id="last-match-card" class="p-4 rounded-xl border border-slate-100 bg-slate-50/50 flex items-center justify-between gap-4 text-center">
+                            <!-- Populated dynamically -->
+                            <p class="text-sm text-slate-400 font-bold mx-auto">No hay partidos registrados aún.</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 border-t pt-4">
+                        <h4 class="font-black text-xs text-slate-400 uppercase tracking-widest mb-3">Próximo Encuentro</h4>
+                        <div id="next-match-card" class="flex items-center justify-between p-3 rounded-lg border border-dashed border-slate-200 bg-amber-50/30">
+                            <p class="text-xs text-slate-500 font-bold mx-auto">Calendario completado o sin definir.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB: PLAYER STATS (Jugadores) -->
+        <section id="tab-content-player-stats" class="tab-content hidden">
+            <!-- Switch sub-tabs (Goles / Asistencias / Minutos) -->
+            <div class="flex justify-center gap-2 mb-6">
+                <button onclick="MoncofaParents.UI.switchPlayerStatTab('goals')" id="stat-subtab-goals" class="stat-subtab px-4 py-2 rounded-xl text-xs font-bold transition-all bg-emerald-500 text-white shadow-sm">
+                    Goleadores
+                </button>
+                <button onclick="MoncofaParents.UI.switchPlayerStatTab('assists')" id="stat-subtab-assists" class="stat-subtab px-4 py-2 rounded-xl text-xs font-bold transition-all bg-white text-slate-600 border border-slate-200 hover:bg-slate-50">
+                    Asistentes
+                </button>
+                <button onclick="MoncofaParents.UI.switchPlayerStatTab('minutes')" id="stat-subtab-minutes" class="stat-subtab px-4 py-2 rounded-xl text-xs font-bold transition-all bg-white text-slate-600 border border-slate-200 hover:bg-slate-50">
+                    Minutos Jugados
+                </button>
+            </div>
+
+            <!-- Subtab Content: GOALS -->
+            <div id="player-stat-content-goals" class="player-stat-tab-content bg-white border border-slate-200 rounded-2xl shadow-sm p-4 md:p-6">
+                <h3 class="font-black text-lg text-slate-800 uppercase border-b pb-3 mb-4 flex items-center gap-2">
+                    <i data-lucide="zap" class="w-5 h-5 text-emerald-500"></i> Tabla de Goleadores (Pichichi)
+                </h3>
+                <div id="goals-ranking-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Subtab Content: ASSISTS -->
+            <div id="player-stat-content-assists" class="player-stat-tab-content hidden bg-white border border-slate-200 rounded-2xl shadow-sm p-4 md:p-6">
+                <h3 class="font-black text-lg text-slate-800 uppercase border-b pb-3 mb-4 flex items-center gap-2">
+                    <i data-lucide="heart" class="w-5 h-5 text-blue-500"></i> Tabla de Asistencias
+                </h3>
+                <div id="assists-ranking-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Subtab Content: MINUTES -->
+            <div id="player-stat-content-minutes" class="player-stat-tab-content hidden bg-white border border-slate-200 rounded-2xl shadow-sm p-4 md:p-6">
+                <h3 class="font-black text-lg text-slate-800 uppercase border-b pb-3 mb-4 flex items-center gap-2">
+                    <i data-lucide="clock" class="w-5 h-5 text-indigo-500"></i> Minutos de Juego acumulados
+                </h3>
+                <div id="minutes-ranking-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="mt-12 py-8 text-center text-xs font-bold text-slate-400 uppercase tracking-widest border-t border-slate-200/50">
+        <p>© 2026 C.F. Platges de Moncofa</p>
+    </footer>
+
+    <script src="js/parents-ui.js"></script>
+</body>
+
+</html>

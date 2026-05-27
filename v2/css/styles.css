@@ -1,0 +1,553 @@
+:root {
+    /* Colores por defecto */
+    --team-shirt: #dc2626;
+    --team-shorts: #000000;
+    --team-socks: #000000;
+    --gk-shirt: #bef264;
+    --gk-shorts: #15803d;
+    --gk-socks: #bef264;
+
+    /* Theme Variables */
+    --bg-color: #f8fafc;
+    --panel-bg: rgba(255, 255, 255, 0.95);
+    --text-color: #0f172a;
+    --border-color: #e2e8f0;
+    --card-bg: #ffffff;
+    --card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+body.dark-mode {
+    --bg-color: #090d16;
+    --panel-bg: rgba(15, 23, 42, 0.75);
+    --text-color: #f8fafc;
+    --border-color: rgba(255, 255, 255, 0.08);
+    --card-bg: #0f172a;
+    --card-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4);
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+body.dark-mode .glass-panel {
+    background: rgba(15, 23, 42, 0.55) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4), inset 0 1px 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.2) !important;
+}
+
+body.dark-mode #drawing-toolbar {
+    background-color: var(--panel-bg);
+    border-color: var(--border-color);
+}
+
+body.dark-mode #drawing-toolbar button {
+    color: var(--text-color);
+}
+
+body.dark-mode #drawing-toolbar button:hover {
+    background-color: #334155;
+}
+
+body.dark-mode #toolbar-content {
+    border-top-color: var(--border-color);
+}
+
+body.dark-mode .bg-white {
+    background-color: #1e293b;
+    color: #f8fafc;
+}
+
+body.dark-mode select {
+    background-color: #334155;
+    color: white;
+    border-color: #475569;
+}
+
+/* Override Tailwind Text Colors in Dark Mode */
+body.dark-mode .text-slate-800,
+body.dark-mode .text-slate-700,
+body.dark-mode .text-slate-600,
+body.dark-mode .text-slate-500 {
+    color: #e2e8f0;
+    /* Light text for readability */
+}
+
+body.dark-mode .text-slate-500:hover {
+    color: #3b82f6;
+    /* Keep blue hover */
+}
+
+/* Background overrides */
+body.dark-mode .bg-slate-100 {
+    background-color: #334155;
+    /* Slate 700 */
+    border-color: #475569;
+}
+
+body.dark-mode .bg-slate-50 {
+    background-color: #1e293b;
+    /* Slate 800 */
+}
+
+/* Override Indigo Colors (Config Modal) */
+body.dark-mode .text-indigo-900,
+body.dark-mode .text-indigo-800,
+body.dark-mode .text-indigo-700,
+body.dark-mode .text-indigo-600 {
+    color: #c7d2fe;
+    /* Indigo 200 */
+}
+
+body.dark-mode .bg-indigo-50 {
+    background-color: #312e81;
+    /* Indigo 900 */
+    border-color: #4338ca;
+}
+
+/* Global Form Elements Dark Mode */
+body.dark-mode input,
+body.dark-mode select,
+body.dark-mode textarea {
+    background-color: #1e293b;
+    /* Slate 800 */
+    color: #f8fafc;
+    border-color: #475569;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Chakra+Petch:wght@500;600;700;800&display=swap');
+
+body {
+    font-family: 'Outfit', sans-serif;
+    background-color: var(--bg-color);
+    /* Light gray */
+    /* Background pattern removed by user request */
+    background-image: none;
+    background-size: auto;
+    background-attachment: scroll;
+    overscroll-behavior: none;
+    color: var(--text-color);
+    transition: background-color 0.3s, color 0.3s;
+    -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+    font-family: 'Chakra Petch', sans-serif;
+}
+
+/* --- PLUGINS & UTILS --- */
+.text-shadow-glow {
+    text-shadow: 0 0 10px currentColor;
+}
+
+/* Hide Scrollbar but keep functionality */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+
+/* --- PITCH REALISM --- */
+/* --- PITCH REALISM --- */
+.pitch {
+    min-height: 500px;
+    background-color: #1e6e2f;
+    background-image: url('../img/field_bg.png'), repeating-linear-gradient(90deg, #1a5824 0%, #1a5824 5%, #21692d 5%, #21692d 10%);
+    background-size: 100% 100%, 100% 100%;
+    /* Ensure it covers the whole area */
+    background-position: center;
+    background-repeat: no-repeat;
+    box-shadow:
+        0 25px 50px -12px rgba(0, 0, 0, 0.25),
+        inset 0 0 80px rgba(0, 0, 0, 0.3),
+        0 0 0 6px white;
+    touch-action: pan-y;
+    position: relative;
+    /* transition: transform 0.3s ease; */
+}
+
+.pitch-line {
+    display: none !important;
+}
+
+/* --- PLAYER AVATARS --- */
+.player-avatar {
+    cursor: grab;
+    touch-action: none;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
+    -webkit-user-select: none;
+    user-select: none;
+    z-index: 20;
+    filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.3));
+}
+
+.player-avatar:active {
+    cursor: grabbing;
+}
+
+.player-avatar:hover {
+    transform: scale(1.1) translate(-50%, -50%);
+    /* translate needed because of absolute centering */
+    z-index: 30;
+    filter: drop-shadow(0 12px 16px rgba(0, 0, 0, 0.4));
+}
+
+/* --- TACTICAL MODE (Tokens) --- */
+.tactical-mode .player-avatar {
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 50% !important;
+    background: var(--team-shirt) !important;
+    border: 3px solid var(--team-shorts) !important;
+    color: white !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.3) !important;
+    /* Token visual */
+    pointer-events: none;
+    /* Locked by default */
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.tactical-mode .player-avatar svg,
+.tactical-mode .player-avatar .player-name-tag,
+.tactical-mode .player-avatar .remove-btn {
+    display: none !important;
+}
+
+.tactical-mode .player-avatar::after {
+    content: attr(data-number);
+    font-size: 16px;
+    font-weight: 900;
+    font-family: 'Chakra Petch', sans-serif;
+    line-height: 1;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.tactical-mode .player-avatar[data-player-role="GK"] {
+    background: var(--gk-shirt) !important;
+    border-color: var(--gk-shorts) !important;
+    color: #1a1a1a !important;
+}
+
+.tactical-mode .player-avatar[data-player-role="GK"]::after {
+    color: inherit;
+    /* Dark text for light GK shirt */
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.tactical-mode.move-active .player-avatar {
+    pointer-events: auto !important;
+    cursor: move !important;
+    z-index: 50;
+    box-shadow: 0 0 0 2px #f59e0b, 0 8px 15px rgba(0, 0, 0, 0.3) !important;
+    /* Ring when moveable */
+}
+
+/* --- GLASSMORPHISM & UI --- */
+.glass-panel {
+    background: rgba(255, 255, 255, 0.45);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 
+        0 8px 32px 0 rgba(31, 38, 135, 0.08), 
+        inset 0 1px 1px 0 rgba(255, 255, 255, 0.8),
+        inset 0 -1px 1px 0 rgba(0, 0, 0, 0.03);
+}
+
+.scoreboard-glass {
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 
+        0 24px 38px 3px rgba(0, 0, 0, 0.45), 
+        inset 0 1px 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* --- ANIMATIONS --- */
+.fixed-header-force {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    z-index: 100 !important;
+    margin: 0 !important;
+    transform: none !important;
+}
+
+@keyframes fadeInSlide {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.log-item {
+    animation: fadeInSlide 0.3s ease-out;
+}
+
+.log-entry:hover .delete-btn {
+    opacity: 1;
+}
+
+.period-btn {
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.period-btn.active {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.period-btn.inactive {
+    background-color: #1e293b;
+    color: #94a3b8;
+}
+
+.period-btn.inactive:hover {
+    background-color: #334155;
+    color: #cbd5e1;
+}
+
+/* Custom Inputs */
+input[type="range"] {
+    accent-color: #2563eb;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* FIFA CARD STYLES (Modernized) */
+.fifa-card {
+    width: 240px;
+    height: 330px;
+    background: linear-gradient(135deg, #fbbf24 0%, #d97706 50%, #92400e 100%);
+    border-radius: 1.5rem;
+    position: relative;
+    clip-path: polygon(0 12%, 50% 0, 100% 12%, 100% 88%, 50% 100%, 0 88%);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    padding: 3px;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.fifa-card:hover {
+    transform: translateY(-10px) rotateY(5deg);
+    box-shadow: 0 35px 60px -15px rgba(217, 119, 6, 0.4);
+}
+
+.fifa-card-inner {
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    background: linear-gradient(to bottom, #ffffff 0%, #f8fafc 100%);
+    clip-path: polygon(0 12%, 50% 0, 100% 12%, 100% 88%, 50% 100%, 0 88%);
+    display: flex;
+    flex-direction: column;
+    padding: 1.8rem 1rem;
+    position: relative;
+    overflow: hidden;
+}
+
+body.dark-mode .fifa-card-inner {
+    background: linear-gradient(to bottom, #1e293b 0%, #0f172a 100%);
+}
+
+.fifa-card-photo {
+    width: 140px;
+    height: 140px;
+    position: absolute;
+    top: 10%;
+    right: -10px;
+    z-index: 2;
+    filter: drop-shadow(0 10px 15px rgba(0,0,0,0.2));
+}
+
+.fifa-card-info-top {
+    position: relative;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin-left: 0.5rem;
+}
+
+.fifa-card-number {
+    font-size: 3.5rem;
+    font-weight: 900;
+    color: #1e293b;
+    line-height: 0.8;
+    letter-spacing: -2px;
+    font-style: italic;
+    text-shadow: 2px 2px 0px rgba(255,255,255,0.5);
+}
+
+body.dark-mode .fifa-card-number {
+    color: #f8fafc;
+    text-shadow: 2px 2px 0px rgba(0,0,0,0.3);
+}
+
+.fifa-card-role {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 0.25rem;
+}
+
+.fifa-card-name-area {
+    margin-top: auto;
+    margin-bottom: 0.75rem;
+    text-align: center;
+    border-top: 1px solid rgba(0,0,0,0.05);
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    padding: 0.5rem 0;
+    position: relative;
+    z-index: 10;
+}
+
+body.dark-mode .fifa-card-name-area {
+    border-color: rgba(255,255,255,0.05);
+}
+
+.fifa-card-name {
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: #0f172a;
+    text-transform: uppercase;
+    letter-spacing: -0.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+body.dark-mode .fifa-card-name {
+    color: #f1f5f9;
+}
+
+.fifa-card-stats-grid {
+    display: grid;
+    grid-cols: 2;
+    gap: 0.5rem;
+    position: relative;
+    z-index: 10;
+}
+.fifa-card-stats {
+    margin-top: auto;
+    display: grid;
+    grid-cols: 2;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+body.dark-mode .fifa-card-stats {
+    border-top-color: #334155;
+}
+
+/* Transitions */
+button, select, input, textarea, a, .glass-panel, .scoreboard-glass, .period-btn, .remove-btn, .player-avatar:not(.dragging), .slot-button {
+    transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s ease-out, transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease-in-out;
+}
+
+/* Animations for Sun/Moon Theme Swap */
+@keyframes rotateSunMoon {
+    from { transform: rotate(0deg) scale(0.3); opacity: 0; }
+    to { transform: rotate(360deg) scale(1); opacity: 1; }
+}
+.theme-icon-animate {
+    animation: rotateSunMoon 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Sync status LED styles */
+#sync-led {
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Toast container & animations */
+#toast-container > div {
+    animation: toastIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes toastIn {
+    from {
+        transform: translateY(1rem) scale(0.9);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+/* Animations */
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.animate-slide-up {
+    animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.4s ease-out forwards;
+}
+
+/* Fix for dragging: disable broad transitions on specific items */
+.dragging, .draggable-item:active {
+    transition: none !important;
+}
+
+/* Premium Buttons */
+button:active {
+    transform: scale(0.95);
+}
+
+.fifa-card:hover {
+    box-shadow: 0 25px 50px -12px rgba(245, 158, 11, 0.3);
+}
+
+/* Utility to force dark mode colors in specific containers */
+.dark-mode .bg-white { background-color: var(--card-bg) !important; }
+.dark-mode .text-slate-800 { color: var(--text-color) !important; }
+.dark-mode .border-slate-100, .dark-mode .border-slate-200 { border-color: var(--border-color) !important; }
+.dark-mode .bg-slate-50 { background-color: #1e293b !important; }

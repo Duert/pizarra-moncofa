@@ -1,0 +1,613 @@
+"use strict";
+
+window.MoncofaParents = window.MoncofaParents || {};
+
+MoncofaParents.UI = {
+    supabase: null,
+    seasons: [],
+    selectedSeasonId: null,
+    currentTab: 'standings',
+    currentStatSubtab: 'goals',
+
+    // Raw fetched data for current season
+    players: [],
+    leagueTeams: [],
+    matches: [],
+    playerStats: [],
+    calendarMatches: [],
+
+    async init() {
+        const SUPABASE_URL = 'https://ietelfmzsxoiktigkwdc.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlldGVsZm16c3hvaWt0aWdrd2RjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MDIxOTIsImV4cCI6MjA5NTQ3ODE5Mn0.QByo7nzlAJRzkN0EJE5esDfVlC_7onreJztzawpfebQ';
+
+        if (window.supabase) {
+            this.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            console.log("Supabase initialized in Parents Portal.");
+            
+            try {
+                await this.loadSeasons();
+            } catch (error) {
+                console.error("Error during initialization:", error);
+                this.showErrorOverlay("Error de conexión con la base de datos.");
+            }
+        } else {
+            console.error("Supabase library not loaded!");
+            this.showErrorOverlay("No se pudo cargar la librería de la base de datos.");
+        }
+    },
+
+    showErrorOverlay(msg) {
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) {
+            overlay.innerHTML = `
+                <div class="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-4 max-w-sm border border-slate-100 text-center">
+                    <div class="bg-red-50 text-red-500 p-4 rounded-full"><i data-lucide="alert-triangle" class="w-12 h-12"></i></div>
+                    <p class="font-black text-slate-800 uppercase tracking-tight text-lg">Error de Carga</p>
+                    <p class="text-sm text-slate-500">${msg}</p>
+                    <button onclick="location.reload()" class="bg-slate-800 hover:bg-slate-700 text-white font-bold py-2 px-6 rounded-xl transition-all text-sm mt-2">Reintentar</button>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+    },
+
+    async loadSeasons() {
+        const { data, error } = await this.supabase
+            .from('seasons')
+            .select('*')
+            .order('name', { ascending: false });
+
+        if (error) {
+            console.error("Error loading seasons:", error);
+            throw error;
+        }
+
+        this.seasons = data || [];
+        if (this.seasons.length === 0) {
+            this.showErrorOverlay("No hay temporadas registradas por el entrenador.");
+            return;
+        }
+
+        // Populate dropdown
+        const selector = document.getElementById('season-selector');
+        if (selector) {
+            selector.innerHTML = this.seasons.map(s => `
+                <option value="${s.id}" ${s.is_current === 1 ? 'selected' : ''}>${s.name} - ${s.category || ''}</option>
+            `).join('');
+        }
+
+        // Set initial selected season
+        const currentSeason = this.seasons.find(s => s.is_current === 1) || this.seasons[0];
+        this.selectedSeasonId = currentSeason.id;
+
+        // Set league headers
+        const leagueNameEl = document.getElementById('league-name');
+        const leagueCategoryEl = document.getElementById('league-category');
+        if (leagueNameEl) leagueNameEl.textContent = `Moncofa C.F. - ${currentSeason.name}`;
+        if (leagueCategoryEl) leagueCategoryEl.textContent = currentSeason.category || 'Categoría no definida';
+
+        await this.loadSeasonData();
+    },
+
+    async loadSeasonData() {
+        this.showLoading(true);
+        const seasonId = this.selectedSeasonId;
+
+        try {
+            // Run fetches in parallel for efficiency
+            const [playersRes, teamsRes, matchesRes, statsRes, calendarRes] = await Promise.all([
+                this.supabase.from('players').select('*'),
+                this.supabase.from('league_teams').select('*').eq('season_id', seasonId),
+                this.supabase.from('matches').select('*').eq('season_id', seasonId),
+                this.supabase.from('player_stats').select('*').eq('season_id', seasonId),
+                this.supabase.from('calendar_matches').select('*').eq('season_id', seasonId)
+            ]);
+
+            if (playersRes.error) throw playersRes.error;
+            if (teamsRes.error) throw teamsRes.error;
+            if (matchesRes.error) throw matchesRes.error;
+            if (statsRes.error) throw statsRes.error;
+            if (calendarRes.error) throw calendarRes.error;
+
+            this.players = playersRes.data || [];
+            this.leagueTeams = teamsRes.data || [];
+            this.matches = matchesRes.data || [];
+            this.playerStats = statsRes.data || [];
+            this.calendarMatches = calendarRes.data || [];
+
+            console.log("Loaded season data:", {
+                players: this.players.length,
+                teams: this.leagueTeams.length,
+                matches: this.matches.length,
+                stats: this.playerStats.length,
+                calendar: this.calendarMatches.length
+            });
+
+            // Render UI tabs
+            this.renderAll();
+            this.showLoading(false);
+        } catch (error) {
+            console.error("Error loading season data:", error);
+            this.showErrorOverlay("No se pudieron descargar los datos de esta temporada.");
+        }
+    },
+
+    showLoading(show) {
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) {
+            if (show) {
+                overlay.style.opacity = '1';
+                overlay.style.pointerEvents = 'auto';
+                overlay.classList.remove('hidden');
+                overlay.classList.add('flex');
+            } else {
+                overlay.style.opacity = '0';
+                overlay.style.pointerEvents = 'none';
+                setTimeout(() => {
+                    overlay.classList.add('hidden');
+                    overlay.classList.remove('flex');
+                }, 500);
+            }
+        }
+    },
+
+    changeSeason(seasonId) {
+        this.selectedSeasonId = parseInt(seasonId);
+        
+        // Update header headers
+        const currentSeason = this.seasons.find(s => s.id === this.selectedSeasonId);
+        if (currentSeason) {
+            const leagueNameEl = document.getElementById('league-name');
+            const leagueCategoryEl = document.getElementById('league-category');
+            if (leagueNameEl) leagueNameEl.textContent = `Moncofa C.F. - ${currentSeason.name}`;
+            if (leagueCategoryEl) leagueCategoryEl.textContent = currentSeason.category || 'Categoría no definida';
+        }
+
+        this.loadSeasonData();
+    },
+
+    switchTab(tabId) {
+        this.currentTab = tabId;
+
+        // Update tab buttons
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('bg-white', 'text-slate-800', 'shadow-sm');
+            btn.classList.add('text-slate-500', 'hover:text-slate-800');
+        });
+
+        const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+        if (activeBtn) {
+            activeBtn.classList.remove('text-slate-500', 'hover:text-slate-800');
+            activeBtn.classList.add('bg-white', 'text-slate-800', 'shadow-sm');
+        }
+
+        // Update tab contents
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+        const activeContent = document.getElementById(`tab-content-${tabId}`);
+        if (activeContent) activeContent.classList.remove('hidden');
+
+        lucide.createIcons();
+    },
+
+    switchPlayerStatTab(subtabId) {
+        this.currentStatSubtab = subtabId;
+
+        document.querySelectorAll('.stat-subtab').forEach(btn => {
+            btn.classList.remove('bg-emerald-500', 'text-white', 'shadow-sm');
+            btn.classList.add('bg-white', 'text-slate-600', 'border', 'border-slate-200', 'hover:bg-slate-50');
+        });
+
+        const activeBtn = document.getElementById(`stat-subtab-${subtabId}`);
+        if (activeBtn) {
+            activeBtn.classList.remove('bg-white', 'text-slate-600', 'border', 'border-slate-200', 'hover:bg-slate-50');
+            activeBtn.classList.add('bg-emerald-500', 'text-white', 'shadow-sm');
+        }
+
+        document.querySelectorAll('.player-stat-tab-content').forEach(c => c.classList.add('hidden'));
+        const activeContent = document.getElementById(`player-stat-content-${subtabId}`);
+        if (activeContent) activeContent.classList.remove('hidden');
+
+        lucide.createIcons();
+    },
+
+    renderAll() {
+        this.renderStandings();
+        this.renderTeamStats();
+        this.renderPlayerStats();
+        lucide.createIcons();
+    },
+
+    // --- RENDER CLASIFICACION ---
+    generateStandings() {
+        const teams = this.leagueTeams;
+        if (teams.length === 0) return [];
+
+        const matches = this.calendarMatches;
+        
+        // Initialize stats
+        const stats = {};
+        teams.forEach(t => {
+            stats[t.id] = {
+                teamId: t.id,
+                teamName: t.name,
+                teamLogo: t.logo,
+                isUs: t.name.toLowerCase().includes('moncofa') || t.name.toLowerCase().includes('platges'),
+                played: 0,
+                won: 0,
+                drawn: 0,
+                lost: 0,
+                gf: 0,
+                gc: 0,
+                points: 0,
+                h2hMatches: []
+            };
+        });
+
+        // Process played matches
+        const playedMatches = matches.filter(m => m.is_played);
+        playedMatches.forEach(m => {
+            const home = stats[m.home_team_id];
+            const away = stats[m.away_team_id];
+
+            if (!home || !away) return;
+
+            const hg = parseInt(m.home_score) || 0;
+            const ag = parseInt(m.away_score) || 0;
+
+            home.gf += hg;
+            home.gc += ag;
+            away.gf += ag;
+            away.gc += hg;
+
+            home.played++;
+            away.played++;
+
+            home.h2hMatches.push(m);
+            away.h2hMatches.push(m);
+
+            if (hg > ag) {
+                home.won++;
+                home.points += 3;
+                away.lost++;
+            } else if (hg < ag) {
+                away.won++;
+                away.points += 3;
+                home.lost++;
+            } else {
+                home.drawn++;
+                away.drawn++;
+                home.points += 1;
+                away.points += 1;
+            }
+        });
+
+        // Convert to array and sort
+        const standingsArray = Object.values(stats);
+        standingsArray.sort((a, b) => {
+            // 1. Points
+            if (a.points !== b.points) return b.points - a.points;
+
+            // 2. Head-to-Head (H2H)
+            let h2hPointsA = 0;
+            let h2hPointsB = 0;
+            const directMatches = playedMatches.filter(m => 
+                (m.home_team_id === a.teamId && m.away_team_id === b.teamId) ||
+                (m.home_team_id === b.teamId && m.away_team_id === a.teamId)
+            );
+
+            directMatches.forEach(m => {
+                const hg = parseInt(m.home_score);
+                const ag = parseInt(m.away_score);
+                if (m.home_team_id === a.teamId) {
+                    if (hg > ag) h2hPointsA += 3;
+                    else if (hg < ag) h2hPointsB += 3;
+                    else { h2hPointsA += 1; h2hPointsB += 1; }
+                } else {
+                    if (ag > hg) h2hPointsA += 3;
+                    else if (ag < hg) h2hPointsB += 3;
+                    else { h2hPointsA += 1; h2hPointsB += 1; }
+                }
+            });
+
+            if (h2hPointsA !== h2hPointsB) return h2hPointsB - h2hPointsA;
+
+            // 3. Goal Difference
+            const aDiff = a.gf - a.gc;
+            const bDiff = b.gf - b.gc;
+            if (aDiff !== bDiff) return bDiff - aDiff;
+
+            // 4. Goals For
+            if (a.gf !== b.gf) return b.gf - a.gf;
+
+            // 5. Goals Against
+            if (a.gc !== b.gc) return a.gc - b.gc;
+
+            return a.teamName.localeCompare(b.teamName);
+        });
+
+        // Assign positions
+        standingsArray.forEach((team, index) => {
+            team.position = index + 1;
+            team.gd = team.gf - team.gc;
+        });
+
+        return standingsArray;
+    },
+
+    renderStandings() {
+        const standings = this.generateStandings();
+        const tbody = document.getElementById('standings-table-body');
+        if (!tbody) return;
+
+        if (standings.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="10" class="py-8 text-center text-slate-400 font-bold">No hay equipos o partidos cargados para esta temporada.</td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = standings.map(t => {
+            const rowClass = t.isUs 
+                ? 'bg-emerald-50/70 hover:bg-emerald-100/70 border-b border-emerald-100 font-bold' 
+                : 'hover:bg-slate-50 border-b border-slate-100';
+            const posClass = t.position === 1 
+                ? 'bg-amber-100 text-amber-800' 
+                : (t.position <= 3 ? 'bg-slate-100 text-slate-700' : 'text-slate-400');
+            const logo = t.teamLogo || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.teamName)}&background=random`;
+
+            return `
+                <tr class="${rowClass} text-slate-700 text-sm transition-colors">
+                    <td class="py-3.5 px-6 text-center">
+                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full font-black text-xs ${posClass}">
+                            ${t.position}
+                        </span>
+                    </td>
+                    <td class="py-3.5 px-4">
+                        <div class="flex items-center gap-3">
+                            <img src="${logo}" class="w-8 h-8 rounded-lg object-contain bg-slate-50 p-1 border border-slate-100" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(t.teamName)}&background=random'">
+                            <span class="truncate max-w-[200px] md:max-w-xs">${t.teamName}</span>
+                        </div>
+                    </td>
+                    <td class="py-3.5 px-4 text-center font-medium">${t.played}</td>
+                    <td class="py-3.5 px-4 text-center text-emerald-600">${t.won}</td>
+                    <td class="py-3.5 px-4 text-center text-slate-500">${t.drawn}</td>
+                    <td class="py-3.5 px-4 text-center text-red-500">${t.lost}</td>
+                    <td class="py-3.5 px-4 text-center text-slate-500">${t.gf}</td>
+                    <td class="py-3.5 px-4 text-center text-slate-500">${t.gc}</td>
+                    <td class="py-3.5 px-4 text-center font-bold ${t.gd > 0 ? 'text-emerald-600' : (t.gd < 0 ? 'text-red-500' : 'text-slate-500')}">${t.gd > 0 ? '+' : ''}${t.gd}</td>
+                    <td class="py-3.5 px-6 text-center font-black bg-emerald-50/50 text-emerald-800 text-base">${t.points}</td>
+                </tr>
+            `;
+        }).join('');
+    },
+
+    // --- RENDER ESTADISTICAS GRUPAL ---
+    renderTeamStats() {
+        const matches = this.matches; // Our matches saved by the coach
+        
+        let played = matches.length;
+        let wins = 0;
+        let draws = 0;
+        let losses = 0;
+        let gf = 0;
+        let gc = 0;
+        let cleanSheets = 0;
+
+        matches.forEach(m => {
+            const isUsHome = m.is_home;
+            const ourScore = isUsHome ? m.home_score : m.away_score;
+            const rivalScore = isUsHome ? m.away_score : m.home_score;
+
+            gf += ourScore;
+            gc += rivalScore;
+
+            if (ourScore > rivalScore) wins++;
+            else if (ourScore < rivalScore) losses++;
+            else draws++;
+
+            if (rivalScore === 0) cleanSheets++;
+        });
+
+        // Set card values
+        document.getElementById('ts-played').textContent = played;
+        document.getElementById('ts-goals-for').textContent = gf;
+        document.getElementById('ts-goals-against').textContent = gc;
+        document.getElementById('ts-clean-sheets').textContent = cleanSheets;
+
+        // Detailed values
+        document.getElementById('team-wins').textContent = wins;
+        document.getElementById('team-draws').textContent = draws;
+        document.getElementById('team-losses').textContent = losses;
+        document.getElementById('team-avg-gf').textContent = played > 0 ? (gf / played).toFixed(1) : '0.0';
+        document.getElementById('team-avg-gc').textContent = played > 0 ? (gc / played).toFixed(1) : '0.0';
+
+        // Render Last Match
+        const lastMatchCard = document.getElementById('last-match-card');
+        if (lastMatchCard) {
+            if (matches.length > 0) {
+                // Sort matches by date to find the last one
+                const sorted = [...matches].sort((a, b) => new Date(b.date) - new Date(a.date));
+                const last = sorted[0];
+                const ourScore = last.is_home ? last.home_score : last.away_score;
+                const rivalScore = last.is_home ? last.away_score : last.home_score;
+                const statusColor = ourScore > rivalScore ? 'bg-emerald-100 text-emerald-800' : (ourScore < rivalScore ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-800');
+                const statusText = ourScore > rivalScore ? 'Victoria' : (ourScore < rivalScore ? 'Derrota' : 'Empate');
+
+                lastMatchCard.innerHTML = `
+                    <div class="flex-1 flex flex-col items-center">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Jornada ${last.matchday || '?'}</span>
+                        <div class="flex items-center justify-center gap-3">
+                            <span class="font-black text-slate-700 text-sm">Moncofa</span>
+                            <span class="font-black text-2xl text-slate-800">${ourScore}</span>
+                            <span class="text-xs font-bold text-slate-400">vs</span>
+                            <span class="font-black text-2xl text-slate-800">${rivalScore}</span>
+                            <span class="font-bold text-slate-600 text-sm truncate max-w-[100px]">${last.rival_name}</span>
+                        </div>
+                        <span class="mt-2 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${statusColor}">${statusText}</span>
+                    </div>
+                `;
+            } else {
+                lastMatchCard.innerHTML = `<p class="text-sm text-slate-400 font-bold mx-auto">No hay partidos jugados registrados.</p>`;
+            }
+        }
+
+        // Render Next Match
+        const nextMatchCard = document.getElementById('next-match-card');
+        if (nextMatchCard) {
+            // Find next unplayed match in calendar matches where we play
+            const ourTeams = this.leagueTeams.filter(t => t.name.toLowerCase().includes('moncofa') || t.name.toLowerCase().includes('platges'));
+            const ourTeamIds = ourTeams.map(t => t.id);
+
+            const nextPlayed = this.calendarMatches
+                .filter(c => !c.is_played && (ourTeamIds.includes(c.home_team_id) || ourTeamIds.includes(c.away_team_id)))
+                .sort((a, b) => a.matchday - b.matchday);
+
+            if (nextPlayed.length > 0) {
+                const next = nextPlayed[0];
+                const homeTeam = this.leagueTeams.find(t => t.id === next.home_team_id);
+                const awayTeam = this.leagueTeams.find(t => t.id === next.away_team_id);
+                const isHome = ourTeamIds.includes(next.home_team_id);
+
+                nextMatchCard.innerHTML = `
+                    <div class="flex items-center justify-between w-full text-xs font-bold">
+                        <span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded uppercase tracking-wider text-[9px]">Jornada ${next.matchday}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="${isHome ? 'text-slate-800 font-black' : 'text-slate-500 font-medium'}">${homeTeam?.name || 'Local'}</span>
+                            <span class="text-slate-400">vs</span>
+                            <span class="${!isHome ? 'text-slate-800 font-black' : 'text-slate-500 font-medium'}">${awayTeam?.name || 'Visitante'}</span>
+                        </div>
+                        <span class="text-[10px] text-slate-400 font-black uppercase">${isHome ? 'En Casa' : 'Fuera'}</span>
+                    </div>
+                `;
+            } else {
+                nextMatchCard.innerHTML = `<p class="text-xs text-slate-500 font-bold mx-auto">Todos los partidos han sido jugados.</p>`;
+            }
+        }
+    },
+
+    // --- RENDER ESTADISTICAS INDIVIDUALES ---
+    renderPlayerStats() {
+        const stats = this.playerStats;
+        const players = this.players;
+
+        // Group statistics by player
+        const playerMap = {};
+        players.forEach(p => {
+            playerMap[p.id] = {
+                id: p.id,
+                name: p.name,
+                number: p.number,
+                photo: p.photo,
+                role: p.role,
+                goals: 0,
+                assists: 0,
+                minutes: 0,
+                matchesPlayed: 0
+            };
+        });
+
+        stats.forEach(s => {
+            const p = playerMap[s.player_id];
+            if (p) {
+                p.goals += s.goals || 0;
+                p.assists += s.assists || 0;
+                p.minutes += s.minutes_played || 0;
+                if (s.minutes_played > 0) {
+                    p.matchesPlayed++;
+                }
+            }
+        });
+
+        const playerList = Object.values(playerMap);
+
+        // 1. Render Goals (Pichichi)
+        const goalsRankingList = document.getElementById('goals-ranking-list');
+        if (goalsRankingList) {
+            const sortedByGoals = [...playerList].sort((a, b) => b.goals - a.goals || a.name.localeCompare(b.name));
+            const activeGoleadores = sortedByGoals.filter(p => p.goals > 0);
+
+            if (activeGoleadores.length === 0) {
+                goalsRankingList.innerHTML = `<p class="text-sm text-slate-400 font-bold text-center col-span-2 py-4">No se han registrado goles en esta temporada.</p>`;
+            } else {
+                goalsRankingList.innerHTML = activeGoleadores.map((p, index) => {
+                    const photo = p.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random`;
+                    return `
+                        <div class="flex items-center justify-between p-3 bg-slate-50/50 border border-slate-100 rounded-2xl hover:shadow-md hover:bg-white transition-all">
+                            <div class="flex items-center gap-3">
+                                <span class="font-black text-slate-300 w-5 text-center text-sm">${index + 1}</span>
+                                <img src="${photo}" class="w-10 h-10 rounded-full object-cover border border-slate-200" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random'">
+                                <div>
+                                    <span class="font-bold text-slate-800 text-sm block leading-tight">${p.name}</span>
+                                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Dorsal ${p.number || '-'} • ${p.role || ''}</span>
+                                </div>
+                            </div>
+                            <span class="bg-emerald-100 text-emerald-800 font-black px-3 py-1 rounded-lg text-xs tracking-tight">${p.goals} Goles</span>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        // 2. Render Assists
+        const assistsRankingList = document.getElementById('assists-ranking-list');
+        if (assistsRankingList) {
+            const sortedByAssists = [...playerList].sort((a, b) => b.assists - a.assists || a.name.localeCompare(b.name));
+            const activeAssistants = sortedByAssists.filter(p => p.assists > 0);
+
+            if (activeAssistants.length === 0) {
+                assistsRankingList.innerHTML = `<p class="text-sm text-slate-400 font-bold text-center col-span-2 py-4">No se han registrado asistencias en esta temporada.</p>`;
+            } else {
+                assistsRankingList.innerHTML = activeAssistants.map((p, index) => {
+                    const photo = p.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random`;
+                    return `
+                        <div class="flex items-center justify-between p-3 bg-slate-50/50 border border-slate-100 rounded-2xl hover:shadow-md hover:bg-white transition-all">
+                            <div class="flex items-center gap-3">
+                                <span class="font-black text-slate-300 w-5 text-center text-sm">${index + 1}</span>
+                                <img src="${photo}" class="w-10 h-10 rounded-full object-cover border border-slate-200" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random'">
+                                <div>
+                                    <span class="font-bold text-slate-800 text-sm block leading-tight">${p.name}</span>
+                                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Dorsal ${p.number || '-'} • ${p.role || ''}</span>
+                                </div>
+                            </div>
+                            <span class="bg-blue-100 text-blue-800 font-black px-3 py-1 rounded-lg text-xs tracking-tight">${p.assists} Asistencias</span>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        // 3. Render Minutes
+        const minutesRankingList = document.getElementById('minutes-ranking-list');
+        if (minutesRankingList) {
+            const sortedByMins = [...playerList].sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name));
+            const activeMinutes = sortedByMins.filter(p => p.minutes > 0);
+
+            if (activeMinutes.length === 0) {
+                minutesRankingList.innerHTML = `<p class="text-sm text-slate-400 font-bold text-center col-span-2 py-4">No se han registrado minutos jugados aún.</p>`;
+            } else {
+                minutesRankingList.innerHTML = activeMinutes.map((p, index) => {
+                    const photo = p.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random`;
+                    return `
+                        <div class="flex items-center justify-between p-3 bg-slate-50/50 border border-slate-100 rounded-2xl hover:shadow-md hover:bg-white transition-all">
+                            <div class="flex items-center gap-3">
+                                <span class="font-black text-slate-300 w-5 text-center text-sm">${index + 1}</span>
+                                <img src="${photo}" class="w-10 h-10 rounded-full object-cover border border-slate-200" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random'">
+                                <div>
+                                    <span class="font-bold text-slate-800 text-sm block leading-tight">${p.name}</span>
+                                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">${p.matchesPlayed} Partidos • Dorsal ${p.number || '-'}</span>
+                                </div>
+                            </div>
+                            <span class="bg-indigo-100 text-indigo-800 font-black px-3 py-1 rounded-lg text-xs tracking-tight">${p.minutes} Minutos</span>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    MoncofaParents.UI.init();
+});

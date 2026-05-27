@@ -1,582 +1,357 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Pizarra Táctica - C.F. Platges de Moncofa</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-  <!-- Iconos Lucide -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <style>
-      :root {
-          /* Colores por defecto */
-          --team-shirt: #dc2626; 
-          --team-shorts: #000000; 
-          --team-socks: #000000; 
-          --gk-shirt: #bef264; 
-          --gk-shorts: #15803d; 
-          --gk-socks: #bef264; 
-      }
-      body { font-family: 'Inter', sans-serif; background-color: #f8fafc; overscroll-behavior: none; }
-      
-      .player-avatar { 
-          cursor: grab; 
-          touch-action: none; 
-          transition: transform 0.1s ease-out; 
-          -webkit-user-select: none;
-          user-select: none;
-          z-index: 10;
-      }
-      .player-avatar:active { cursor: grabbing; transform: scale(1.1) translate(-50%, -50%); z-index: 99; }
-      .player-avatar.dragging { transition: none; z-index: 100; }
-      
-      .pitch { 
-          min-height: 500px; 
-          background-image: 
-              repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(0,0,0,0.05) 50px, rgba(0,0,0,0.05) 100px),
-              linear-gradient(to bottom, #34a853, #2e9649);
-          touch-action: none;
-      }
-      
-      .log-entry:hover .delete-btn { opacity: 1; }
-      .period-btn.active { background-color: #2563eb; color: white; }
-      .period-btn.inactive { background-color: #1e293b; color: #94a3b8; }
-      
-      @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-5px); }
-          to { opacity: 1; transform: translateY(0); }
-      }
-      .log-item { animation: fadeIn 0.3s ease-out; }
 
-      .color-picker-wrapper {
-          position: relative;
-          width: 100%; height: 40px; border-radius: 8px; overflow: hidden;
-          border: 1px solid #e2e8f0; cursor: pointer;
-      }
-      .color-picker-wrapper input[type="color"] {
-          position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; cursor: pointer; border: none; padding: 0; margin: 0;
-      }
-      .color-label {
-          position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;
-          background: rgba(255,255,255,0.2); backdrop-filter: blur(2px); font-size: 10px; font-weight: bold; text-transform: uppercase; color: #1e293b;
-      }
-  </style>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pizarra Táctica - C.F. Platges de Moncofa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <!-- Iconos Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <iframe id="pdf-frame" style="display:none;"></iframe>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link rel="stylesheet" href="css/styles.css">
+
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#f3f4f6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-touch-fullscreen" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Pizarra Moncofa">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/icon.png">
 </head>
+
 <body class="min-h-screen text-slate-800 pb-10">
 
-  <!-- TEMPLATE AVATAR -->
-  <template id="player-avatar-template">
-      <div class="player-avatar absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center w-16 h-20" data-player-id="" data-player-role="">
-          <svg width="40" height="60" viewBox="0 0 100 150" class="pointer-events-none drop-shadow-md">
-              <ellipse cx="50" cy="145" rx="25" ry="4" fill="black" opacity="0.3" />
-              <path d="M38,100 L35,135" stroke="#e0ac69" stroke-width="10" stroke-linecap="round"/>
-              <path class="player-socks" d="M38,115 L36,138" stroke="var(--team-socks)" stroke-width="10" stroke-linecap="butt"/>
-              <path d="M28,138 L42,138 L42,143 Q35,145 28,143 Z" fill="#1a1a1a"/>
-              <path d="M62,100 L65,135" stroke="#e0ac69" stroke-width="10" stroke-linecap="round"/>
-              <path class="player-socks" d="M62,115 L64,138" stroke="var(--team-socks)" stroke-width="10" stroke-linecap="butt"/>
-              <path d="M58,138 L72,138 L72,143 Q65,145 58,143 Z" fill="#1a1a1a"/>
-              <path d="M25,55 Q15,70 20,90" stroke="#e0ac69" stroke-width="9" stroke-linecap="round" />
-              <path d="M75,55 Q85,70 80,90" stroke="#e0ac69" stroke-width="9" stroke-linecap="round" />
-              <path class="player-shirt" d="M30,45 Q50,40 70,45 L78,95 Q50,100 22,95 Z" fill="var(--team-shirt)" />
-              <path class="player-shirt" d="M30,45 L18,60 L28,65 L35,50" fill="var(--team-shirt)" />
-              <path class="player-shirt" d="M70,45 L82,60 L72,65 L65,50" fill="var(--team-shirt)" />
-              <path class="player-shorts" d="M22,95 L78,95 L80,115 Q50,125 20,115 Z" fill="var(--team-shorts)" />
-              <circle cx="50" cy="30" r="16" fill="#e0ac69" />
-              <path d="M34,25 Q50,10 66,25 Q70,20 65,12 Q50,-5 35,12 Q30,20 34,25" fill="#2d2d2d" />
-              <text class="player-number" x="50" y="80" text-anchor="middle" fill="white" font-size="24" font-weight="800" style="text-shadow: 1px 1px 0 rgba(0,0,0,0.5);"></text>
-          </svg>
-          <div class="bg-slate-900/90 text-white px-2 py-0.5 rounded shadow border border-slate-700 mt-[-5px] z-20 min-w-[44px] text-center backdrop-blur-sm pointer-events-none">
-              <p class="player-name font-bold whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px] leading-tight tracking-wide text-[9px]"></p>
-          </div>
-          <button class="remove-btn absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold shadow-md hover:bg-red-600 z-50 transition-transform active:scale-90" 
-                  onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()"
-                  onclick="event.stopPropagation(); removePlayerFromPitch(this.parentElement.dataset.playerId)">
-              <i data-lucide="x" class="w-3 h-3"></i>
-          </button>
-      </div>
-  </template>
+    <!-- TEMPLATE AVATAR -->
+    <template id="player-avatar-template">
+        <div class="player-avatar absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center w-20 h-24"
+            data-player-id="" data-player-role="">
+            <svg width="48" height="72" viewBox="0 0 100 150" class="pointer-events-none drop-shadow-md">
+                <ellipse cx="50" cy="145" rx="25" ry="4" fill="black" opacity="0.3" />
+                <path d="M38,100 L35,135" stroke="#e0ac69" stroke-width="10" stroke-linecap="round" />
+                <path class="player-socks" d="M38,115 L36,138" stroke="var(--team-socks)" stroke-width="10"
+                    stroke-linecap="butt" />
+                <path d="M28,138 L42,138 L42,143 Q35,145 28,143 Z" fill="#1a1a1a" />
+                <path d="M62,100 L65,135" stroke="#e0ac69" stroke-width="10" stroke-linecap="round" />
+                <path class="player-socks" d="M62,115 L64,138" stroke="var(--team-socks)" stroke-width="10"
+                    stroke-linecap="butt" />
+                <path d="M58,138 L72,138 L72,143 Q65,145 58,143 Z" fill="#1a1a1a" />
+                <path d="M25,55 Q15,70 20,90" stroke="#e0ac69" stroke-width="9" stroke-linecap="round" />
+                <path d="M75,55 Q85,70 80,90" stroke="#e0ac69" stroke-width="9" stroke-linecap="round" />
+                <path class="player-shirt" d="M30,45 Q50,40 70,45 L78,95 Q50,100 22,95 Z" fill="var(--team-shirt)" />
+                <path class="player-shirt" d="M30,45 L18,60 L28,65 L35,50" fill="var(--team-shirt)" />
+                <path class="player-shirt" d="M70,45 L82,60 L72,65 L65,50" fill="var(--team-shirt)" />
+                <path class="player-shorts" d="M22,95 L78,95 L80,115 Q50,125 20,115 Z" fill="var(--team-shorts)" />
+                <circle cx="50" cy="30" r="16" fill="#e0ac69" />
+                <path d="M34,25 Q50,10 66,25 Q70,20 65,12 Q50,-5 35,12 Q30,20 34,25" fill="#2d2d2d" />
+                <text class="player-number" x="50" y="80" text-anchor="middle" fill="var(--team-number)" font-size="24"
+                    font-weight="800" style="text-shadow: 1px 1px 0 rgba(0,0,0,0.5);"></text>
+            </svg>
+            <div
+                class="player-name-tag bg-black text-white px-2 py-0.5 rounded shadow border border-slate-700 mt-0 z-20 min-w-[44px] text-center pointer-events-none">
+                <p
+                    class="player-name font-bold whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px] leading-tight tracking-wide text-[9px]">
+                </p>
+            </div>
+            <button
+                class="remove-btn absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold shadow-md hover:bg-red-600 z-50 transition-transform active:scale-90"
+                onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()"
+                onclick="event.stopPropagation(); MoncofaApp.Main.removePlayerFromPitch(this.parentElement.dataset.playerId)">
+                <i data-lucide="x" class="w-3 h-3"></i>
+            </button>
+        </div>
+    </template>
 
-  <!-- Modal Genérico -->
-  <div id="action-modal" class="fixed inset-0 bg-black/60 z-[100] hidden items-center justify-center p-4 backdrop-blur-sm">
-      <div id="modal-content" class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm border-t-8 border-blue-500 animate-in zoom-in duration-200"></div>
-  </div>
 
-  <!-- HEADER -->
-  <header class="bg-white border-b sticky top-0 z-40 shadow-md p-2">
-      <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
-          <!-- Logo & Título -->
-          <div class="flex items-center gap-3 w-full md:w-auto justify-center md:justify-start">
-              <div class="relative group cursor-pointer" onclick="document.getElementById('logo-upload').click()">
-                  <img id="team-logo" src="" alt="Escudo" class="w-10 h-14 object-contain drop-shadow-md transition-transform group-hover:scale-105" />
-                  <div class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 rounded text-white text-[8px] font-bold text-center pointer-events-none transition-opacity">CAMBIAR</div>
-              </div>
-              <input type="file" id="logo-upload" hidden accept="image/*" onchange="handleLogoUpload(this)">
-              <div class="flex flex-col">
-                  <h1 class="font-black text-lg md:text-2xl text-slate-800 tracking-tight leading-none" id="app-team-name">C.F. PLATGES DE MONCOFA</h1>
-                  <button onclick="showKitConfig()" class="text-xs text-slate-500 hover:text-blue-600 font-bold flex items-center gap-1 mt-1 transition-colors w-fit"><i data-lucide="settings-2" class="w-3 h-3"></i> Configurar Equipación</button>
-              </div>
-          </div>
-          <!-- Marcador -->
-          <div class="flex flex-col items-center w-full md:w-auto">
-              <div class="bg-slate-900 text-white px-4 py-2 rounded-t-xl flex items-center justify-center gap-4 font-mono shadow-2xl border border-slate-700 w-full max-w-xs md:w-auto">
-                  <span id="score-home" class="text-3xl text-green-400 font-bold w-8 text-center">0</span>
-                  <div class="flex flex-col items-center border-x border-slate-700 px-4 min-w-[100px]">
-                      <span id="timer-display" class="text-3xl font-bold tabular-nums">00:00</span>
-                      <span id="timer-status" class="text-[9px] text-red-500 animate-pulse font-bold tracking-[0.2em] mt-1 hidden">EN JUEGO</span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                      <span id="score-away" class="text-3xl text-red-400 font-bold w-8 text-center">0</span>
-                      <div class="flex flex-col gap-1">
-                          <button onclick="changeAwayScore(1)" class="w-6 h-6 flex items-center justify-center bg-slate-700 hover:bg-green-600 rounded text-[10px] leading-none transition-colors"><i data-lucide="plus" class="w-3 h-3"></i></button>
-                          <button onclick="changeAwayScore(-1)" class="w-6 h-6 flex items-center justify-center bg-slate-700 hover:bg-red-600 rounded text-[10px] leading-none transition-colors"><i data-lucide="minus" class="w-3 h-3"></i></button>
-                      </div>
-                  </div>
-              </div>
-              <div class="flex items-center bg-slate-800 text-white rounded-b-xl overflow-hidden text-[10px] uppercase font-bold w-full max-w-xs border-x border-b border-slate-700">
-                  <button id="period-1-btn" onclick="switchPeriod(1)" class="period-btn active flex-1 py-1.5 transition-colors">1ª Parte</button>
-                  <button id="period-2-btn" onclick="switchPeriod(2)" class="period-btn inactive flex-1 py-1.5 transition-colors">2ª Parte</button>
-              </div>
-          </div>
-          <!-- Controles -->
-          <div class="flex gap-2 justify-center w-full md:w-auto">
-              <button id="toggle-timer-btn" onclick="toggleTimer()" class="p-3 rounded-full shadow-lg bg-green-100 text-green-700 hover:bg-green-200 hover:scale-105 transition-all"><i data-lucide="play" class="w-6 h-6"></i></button>
-              <button onclick="resetTimer()" class="p-3 bg-white text-slate-600 rounded-full shadow-md hover:bg-slate-100 hover:scale-105 transition-all"><i data-lucide="rotate-ccw" class="w-6 h-6"></i></button>
-          </div>
-      </div>
-  </header>
 
-  <!-- MAIN -->
-  <main class="max-w-7xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
-      <!-- Columna Izquierda -->
-      <div class="lg:col-span-8 flex flex-col gap-4">
-          <div class="bg-slate-50 p-4 rounded-2xl shadow-inner border-2 border-slate-100">
-              <div class='flex justify-between items-center mb-4 flex-wrap gap-2'>
-                  <!-- SELECTOR DE FORMACIÓN -->
-                  <div class="flex items-center gap-2">
-                      <i data-lucide="layout-dashboard" class="w-5 h-5 text-slate-500"></i>
-                      <select id="formation-select" onchange="changeFormation(this.value)" class="bg-white border border-slate-300 text-slate-800 text-lg font-extrabold rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-1.5 shadow-sm">
-                          <option value="3-3-1" selected>3-3-1</option>
-                          <option value="4-2-1">4-2-1</option>
-                          <option value="2-3-2">2-3-2</option>
-                          <option value="3-2-2">3-2-2</option>
-                          <option value="2-4-1">2-4-1</option>
-                          <option value="3-4-0">3-4-0</option>
-                          <option value="4-3-0">4-3-0</option>
-                      </select>
-                  </div>
-
-                  <div class="flex gap-2">
-                      <button onclick="saveStartingLineup()" class="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 flex items-center gap-1 transition-colors shadow-sm"><i data-lucide="save" class="w-3 h-3"></i> Registrar Alineación</button>
-                      <button onclick="clearPitch()" class="px-3 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-bold hover:bg-red-200 flex items-center gap-1 transition-colors"><i data-lucide="trash-2" class="w-3 h-3"></i> Limpiar</button>
-                  </div>
-              </div>
-              
-              <!-- PIZARRA -->
-              <div id="pitch" class="pitch w-full aspect-[4/5] md:aspect-[5/4] rounded-2xl shadow-2xl border-[6px] border-white relative overflow-hidden ring-1 ring-black/10 select-none" onmousedown="startDrag(event)" ontouchstart="startDrag(event)">
-                  <div class="absolute inset-5 border-2 border-white/80 pointer-events-none mix-blend-overlay"></div>
-                  <div class="absolute top-1/2 left-5 right-5 h-0.5 bg-white/80 pointer-events-none mix-blend-overlay"></div>
-                  <div class="absolute top-1/2 left-1/2 w-28 h-28 border-2 border-white/80 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none mix-blend-overlay"></div>
-                  <div class="absolute top-5 left-1/2 w-[60%] h-[15%] border-2 border-t-0 border-white/80 -translate-x-1/2 pointer-events-none mix-blend-overlay"></div>
-                  <div class="absolute top-5 left-1/2 w-[30%] h-[6%] border-2 border-t-0 border-white/80 -translate-x-1/2 pointer-events-none mix-blend-overlay"></div>
-                  <div class="absolute bottom-5 left-1/2 w-[60%] h-[15%] border-2 border-b-0 border-white/80 -translate-x-1/2 pointer-events-none mix-blend-overlay"></div>
-                  <div class="absolute bottom-5 left-1/2 w-[30%] h-[6%] border-2 border-b-0 border-white/80 -translate-x-1/2 pointer-events-none mix-blend-overlay"></div>
-              </div>
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-              <button onclick="showGoalModal()" class="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white font-black py-4 rounded-2xl shadow-xl shadow-green-200 flex justify-center items-center gap-2 transform active:scale-95 transition-all w-full border-b-4 border-green-700 active:border-b-0 active:translate-y-1"><i data-lucide="trophy" class="w-5 h-5"></i> <span class="hidden sm:inline">REGISTRAR</span> GOL</button>
-              <button onclick="showSubModal()" class="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-black py-4 rounded-2xl shadow-xl shadow-blue-200 flex justify-center items-center gap-2 transform active:scale-95 transition-all w-full border-b-4 border-blue-700 active:border-b-0 active:translate-y-1"><i data-lucide="replace" class="w-5 h-5"></i> <span class="hidden sm:inline">REALIZAR</span> CAMBIO</button>
-          </div>
-      </div>
-
-      <!-- Columna Derecha -->
-      <div class="lg:col-span-4 flex flex-col gap-6">
-           <div class="bg-white rounded-2xl shadow-lg border border-slate-100 flex flex-col overflow-hidden max-h-[400px]">
-              <div class="bg-slate-50 p-4 border-b border-slate-100 flex justify-between items-center sticky top-0 z-10">
-                  <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="users" class="w-4 h-4 text-blue-500"></i> CONVOCATORIA</h3>
-                  <span id="bench-count" class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">16 DISP.</span>
-              </div>
-              <div class="flex-1 overflow-y-auto p-2 space-y-2 bg-slate-100/50"><div id="squad-list" class="space-y-1.5"></div></div>
-           </div>
-           <div class="bg-white rounded-2xl shadow-lg border border-slate-100 flex-1 flex flex-col min-h-[300px] overflow-hidden">
-               <div class="bg-slate-50 p-3 border-b border-slate-100 font-bold text-slate-700 text-sm flex items-center justify-between shadow-sm sticky top-0 z-10">
-                  <span class='flex items-center gap-2'><i data-lucide="history" class="w-4 h-4 text-slate-400"></i> Acta del Partido</span>
-                  <span class='text-xs text-slate-500 font-mono bg-slate-200 px-2 py-0.5 rounded' id="score-text">0 - 0</span>
-               </div>
-               <div id="log-container" class="flex-1 overflow-y-auto scroll-smooth"><table class="w-full text-xs text-left"><tbody id="match-log" class="divide-y divide-slate-100"></tbody></table></div>
-           </div>
-      </div>
-  </main>
-
-  <!-- Resumen al pie -->
-  <section class="max-w-7xl mx-auto p-4 mt-6 mb-12">
-      <h2 class="text-xl font-black text-slate-800 mb-4 border-b pb-2 flex items-center gap-2"><i data-lucide="clipboard-check" class="w-5 h-5 text-slate-400"></i> Resumen</h2>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div class="bg-green-50 p-4 rounded-xl shadow border border-green-100"><h3 class="font-bold text-green-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><i data-lucide="check-circle" class="w-4 h-4"></i> Titulares (<span id="starters-count">0</span>)</h3><ul id="starters-list" class="space-y-1 text-xs font-medium text-slate-600"></ul></div>
-          <div class="bg-blue-50 p-4 rounded-xl shadow border border-blue-100"><h3 class="font-bold text-blue-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><i data-lucide="shirt" class="w-4 h-4"></i> Suplentes (<span id="bench-list-count">0</span>)</h3><ul id="bench-list" class="space-y-1 text-xs font-medium text-slate-600"></ul></div>
-          <div class="bg-red-50 p-4 rounded-xl shadow border border-red-100"><h3 class="font-bold text-red-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><i data-lucide="x-circle" class="w-4 h-4"></i> No Convocados (<span id="uncalled-count">0</span>)</h3><ul id="uncalled-list" class="space-y-1 text-xs font-medium text-slate-600"></ul></div>
-      </div>
-  </section>
-
-  <script>
-      // === CONFIGURACIÓN DE FORMACIONES ===
-      const FORMATIONS = {
-          '3-3-1': [
-              { id: 0, x: 50, y: 90, role: 'GK' },
-              { id: 1, x: 20, y: 75, role: 'DEF' }, { id: 2, x: 50, y: 75, role: 'DEF' }, { id: 3, x: 80, y: 75, role: 'DEF' },
-              { id: 4, x: 20, y: 50, role: 'MED' }, { id: 5, x: 50, y: 50, role: 'MED' }, { id: 6, x: 80, y: 50, role: 'MED' },
-              { id: 7, x: 50, y: 25, role: 'DEL' }
-          ],
-          '4-2-1': [
-              { id: 0, x: 50, y: 90, role: 'GK' },
-              { id: 1, x: 15, y: 75, role: 'DEF' }, { id: 2, x: 38, y: 75, role: 'DEF' }, { id: 3, x: 62, y: 75, role: 'DEF' }, { id: 6, x: 85, y: 75, role: 'DEF' }, // 4 defensas
-              { id: 4, x: 35, y: 45, role: 'MED' }, { id: 5, x: 65, y: 45, role: 'MED' }, // 2 medios
-              { id: 7, x: 50, y: 20, role: 'DEL' } // 1 punta
-          ],
-          '2-3-2': [
-              { id: 0, x: 50, y: 90, role: 'GK' },
-              { id: 1, x: 30, y: 75, role: 'DEF' }, { id: 3, x: 70, y: 75, role: 'DEF' }, // 2 defensas
-              { id: 2, x: 50, y: 50, role: 'MED' }, { id: 4, x: 20, y: 50, role: 'MED' }, { id: 5, x: 80, y: 50, role: 'MED' }, // 3 medios
-              { id: 6, x: 35, y: 25, role: 'DEL' }, { id: 7, x: 65, y: 25, role: 'DEL' } // 2 puntas
-          ],
-          '3-2-2': [
-              { id: 0, x: 50, y: 90, role: 'GK' },
-              { id: 1, x: 20, y: 75, role: 'DEF' }, { id: 2, x: 50, y: 75, role: 'DEF' }, { id: 3, x: 80, y: 75, role: 'DEF' },
-              { id: 4, x: 35, y: 50, role: 'MED' }, { id: 5, x: 65, y: 50, role: 'MED' },
-              { id: 6, x: 35, y: 25, role: 'DEL' }, { id: 7, x: 65, y: 25, role: 'DEL' }
-          ],
-          '2-4-1': [
-              { id: 0, x: 50, y: 90, role: 'GK' },
-              { id: 1, x: 30, y: 75, role: 'DEF' }, { id: 2, x: 70, y: 75, role: 'DEF' },
-              { id: 3, x: 15, y: 50, role: 'MED' }, { id: 4, x: 38, y: 50, role: 'MED' }, { id: 5, x: 62, y: 50, role: 'MED' }, { id: 6, x: 85, y: 50, role: 'MED' },
-              { id: 7, x: 50, y: 25, role: 'DEL' }
-          ],
-          '3-4-0': [
-              { id: 0, x: 50, y: 90, role: 'GK' },
-              { id: 1, x: 20, y: 75, role: 'DEF' }, { id: 2, x: 50, y: 75, role: 'DEF' }, { id: 3, x: 80, y: 75, role: 'DEF' },
-              { id: 4, x: 15, y: 40, role: 'MED' }, { id: 5, x: 38, y: 40, role: 'MED' }, { id: 6, x: 62, y: 40, role: 'MED' }, { id: 7, x: 85, y: 40, role: 'MED' }
-          ],
-          '4-3-0': [
-              { id: 0, x: 50, y: 90, role: 'GK' },
-              { id: 1, x: 15, y: 75, role: 'DEF' }, { id: 2, x: 38, y: 75, role: 'DEF' }, { id: 3, x: 62, y: 75, role: 'DEF' }, { id: 6, x: 85, y: 75, role: 'DEF' },
-              { id: 4, x: 20, y: 45, role: 'MED' }, { id: 5, x: 50, y: 45, role: 'MED' }, { id: 7, x: 80, y: 45, role: 'MED' }
-          ]
-      };
-
-      let currentFormationKey = '3-3-1';
-      
-      let SQUAD = [
-          { id: 1, number: "1", name: "Jorge", role: "GK", calledUp: true },
-          { id: 2, number: "2", name: "Gabriel", role: "FIELD", calledUp: true },
-          { id: 3, number: "3", name: "Héctor", role: "FIELD", calledUp: true },
-          { id: 4, number: "4", name: "Nicolás", role: "FIELD", calledUp: true },
-          { id: 5, number: "5", name: "Hugo", role: "FIELD", calledUp: true },
-          { id: 6, number: "6", name: "Leon", role: "FIELD", calledUp: true },
-          { id: 7, number: "7", name: "Rubén", role: "FIELD", calledUp: true },
-          { id: 8, number: "8", name: "Marc", role: "FIELD", calledUp: true },
-          { id: 9, number: "9", name: "Angel", role: "FIELD", calledUp: true },
-          { id: 10, number: "10", name: "Martín", role: "FIELD", calledUp: true },
-          { id: 11, number: "12", name: "Álex", role: "FIELD", calledUp: true },
-          { id: 12, number: "15", name: "Moises", role: "FIELD", calledUp: true },
-          { id: 13, number: "16", name: "Imram", role: "FIELD", calledUp: true },
-          { id: 14, number: "20", name: "Collado", role: "FIELD", calledUp: true },
-          { id: 15, number: "22", name: "Carlos", role: "FIELD", calledUp: true },
-          { id: 16, number: "98", name: "Valentino", role: "GK", calledUp: true },
-      ].sort((a, b) => parseInt(a.number) - parseInt(b.number));
-
-      // Array de 8 posiciones (F8)
-      let LINEUP_IDS = Array(8).fill(null);
-      let MATCH_STATE = { period: 1, isRunning: false, startTime: null, accumulatedMs: 0, displayMs: 0, intervalId: null };
-      let SCORE = { home: 0, away: 0 };
-      let MATCH_LOG = [];
-      let CUSTOM_POSITIONS = {};
-      const DEFAULT_COLORS = { '--team-shirt': '#dc2626', '--team-shorts': '#000000', '--team-socks': '#000000', '--gk-shirt': '#bef264', '--gk-shorts': '#15803d', '--gk-socks': '#bef264' };
-      const DEFAULT_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 120'%3E%3Cpath d='M10 10 Q50 0 90 10 L95 80 Q50 120 5 80 Z' fill='%23dc2626' stroke='%23000' stroke-width='2'/%3E%3Ctext x='50' y='60' text-anchor='middle' fill='white' font-weight='bold' font-size='40' font-family='sans-serif'%3EM%3C/text%3E%3C/svg%3E";
-
-      // HELPERS
-      const getPlayerById = (id) => SQUAD.find(p => p.id === parseInt(id));
-      const getStarters = () => LINEUP_IDS.map(id => getPlayerById(id)).filter(Boolean);
-      const getBench = () => SQUAD.filter(p => p.calledUp && !LINEUP_IDS.includes(p.id));
-      const getUncalled = () => SQUAD.filter(p => !p.calledUp);
-      const getCssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-      const getCurrentFormation = () => FORMATIONS[currentFormationKey];
-
-      // --- LOGICA CAMBIO FORMACIÓN ---
-      const changeFormation = (newFormation) => {
-          currentFormationKey = newFormation;
-          // Reiniciar posiciones manuales para ajustar a la nueva tactica
-          CUSTOM_POSITIONS = {};
-          updateUI();
-      };
-
-      // --- LOGICA PRINCIPAL APP ---
-      const loadSavedKit = () => {
-          const saved = localStorage.getItem('moncofa_kit_colors');
-          if(saved) {
-              const colors = JSON.parse(saved);
-              Object.keys(colors).forEach(key => document.documentElement.style.setProperty(key, colors[key]));
-          }
-      };
-      const updateKitColor = (varName, color) => {
-          document.documentElement.style.setProperty(varName, color);
-          let current = localStorage.getItem('moncofa_kit_colors') ? JSON.parse(localStorage.getItem('moncofa_kit_colors')) : {};
-          current[varName] = color;
-          localStorage.setItem('moncofa_kit_colors', JSON.stringify(current));
-      };
-      const handleLogoUpload = (input) => {
-          if (input.files && input.files[0]) {
-              const reader = new FileReader();
-              reader.onload = (e) => {
-                  const dataUrl = e.target.result;
-                  document.getElementById('team-logo').src = dataUrl;
-                  try { localStorage.setItem('moncofa_team_logo', dataUrl); } catch (err) {}
-              };
-              reader.readAsDataURL(input.files[0]);
-          }
-      };
-      const loadSavedLogo = () => {
-          const saved = localStorage.getItem('moncofa_team_logo');
-          document.getElementById('team-logo').src = saved || DEFAULT_LOGO;
-      };
-
-      const renderSquadList = () => {
-          const listEl = document.getElementById('squad-list'); listEl.innerHTML = '';
-          [...SQUAD].sort((a,b)=>parseInt(a.number)-parseInt(b.number)).forEach(p => {
-              const onP = LINEUP_IDS.includes(p.id), isGK = p.role==='GK';
-              const col = onP ? 'bg-green-100 text-green-800 border-green-200' : p.calledUp ? 'bg-white text-slate-700 hover:bg-slate-50' : 'bg-red-50 text-red-800 opacity-60';
-              listEl.insertAdjacentHTML('beforeend', `<div class="flex items-center gap-2 p-1.5 rounded-lg border border-slate-200 transition-all ${col}"><div class="w-6 h-6 rounded-full flex items-center justify-center font-bold text-white text-[10px] shadow-sm ${isGK?'bg-yellow-500':'bg-red-600'}">${p.number}</div><div class="flex-1 font-semibold text-xs truncate">${p.name}</div><button onclick="toggleCalledUp(${p.id})" class="p-1 rounded text-white shadow-sm ${p.calledUp?'bg-red-400 hover:bg-red-500':'bg-green-500 hover:bg-green-600'}"><i data-lucide="${p.calledUp?'ban':'check'}" class="w-3 h-3"></i></button></div>`);
-          });
-          document.getElementById('bench-count').textContent = `${SQUAD.filter(p=>p.calledUp).length} DISP.`;
-      };
-      
-      const renderPitch = () => {
-          const p = document.getElementById('pitch'); 
-          p.querySelectorAll('.player-avatar, .slot-button').forEach(e => e.remove());
-          
-          const currentPosData = getCurrentFormation();
-
-          currentPosData.forEach((pos, i) => {
-              const pid = LINEUP_IDS[i], pl = getPlayerById(pid);
-              if(pl) {
-                  const t = document.getElementById('player-avatar-template').content.cloneNode(true), d = t.querySelector('div');
-                  d.dataset.playerId = pl.id; 
-                  d.style.left = `${CUSTOM_POSITIONS[pl.id]?.x || pos.x}%`; 
-                  d.style.top = `${CUSTOM_POSITIONS[pl.id]?.y || pos.y}%`;
-                  t.querySelector('.player-number').textContent = pl.number; t.querySelector('.player-name').textContent = pl.name;
-                  const isGK = pl.role === 'GK';
-                  const clr = {s: isGK?getCssVar('--gk-shirt'):getCssVar('--team-shirt'), sh: isGK?getCssVar('--gk-shorts'):getCssVar('--team-shorts'), so: isGK?getCssVar('--gk-socks'):getCssVar('--team-socks')};
-                  d.querySelectorAll('.player-shirt').forEach(e=>e.setAttribute('fill',clr.s)); d.querySelectorAll('.player-shorts').forEach(e=>e.setAttribute('fill',clr.sh)); d.querySelectorAll('.player-socks').forEach(e=>e.setAttribute('stroke',clr.so));
-                  p.appendChild(d);
-              } else {
-                  const b = document.createElement('button'); b.className='slot-button absolute w-10 h-10 rounded-full border-2 border-dashed border-white/60 bg-black/10 text-white -translate-x-1/2 -translate-y-1/2 hover:scale-110 hover:bg-black/30 transition-all flex items-center justify-center backdrop-blur-sm z-0';
-                  b.style.left = `${pos.x}%`; b.style.top = `${pos.y}%`; b.innerHTML = '<i data-lucide="plus" class="w-5 h-5 opacity-80"></i>'; b.onclick = () => showBenchSelector(i); p.appendChild(b);
-              }
-          });
-          lucide.createIcons();
-      };
-
-      const renderSquadBreakdown = () => {
-          const l = (arr,id) => document.getElementById(id).innerHTML = arr.length ? arr.map(p=>`<li><span class="font-bold">${p.number}.</span> ${p.name}</li>`).join('') : '<li class="text-slate-400 italic">Vacío</li>';
-          l(getStarters(),'starters-list'); l(getBench(),'bench-list'); l(getUncalled(),'uncalled-list');
-          document.getElementById('starters-count').textContent=getStarters().length; document.getElementById('bench-list-count').textContent=getBench().length; document.getElementById('uncalled-count').textContent=getUncalled().length;
-      };
-      
-      const renderLog = () => {
-          const el = document.getElementById('match-log'); el.innerHTML = MATCH_LOG.length ? '' : '<tr><td colspan="3" class="text-center text-slate-400 p-4 italic">El partido comienza...</td></tr>';
-          MATCH_LOG.forEach(l => { 
-              const tr = document.createElement('tr'); tr.className='log-item hover:bg-slate-50 group border-b border-slate-50 last:border-0';
-              let c='',h='', btn=''; 
-              if(l.type=='goal'){ 
-                  const assistText = l.d.assist ? `<span class="text-[10px] text-slate-500 font-normal ml-1">🅰️ ${l.d.assist}</span>` : '';
-                  c='text-green-700'; h=`<span class="font-bold flex items-center gap-1 flex-wrap">⚽ ${l.d.scorer} ${assistText}</span>`; 
-              }
-              else if(l.type.includes('goal')){ c='text-red-600'; h=`<span class="font-bold">⚠️ ${l.text}</span>`; }
-              else if(l.type=='sub'){ c='text-blue-700'; h=`<span class="flex items-center gap-1"><i data-lucide="refresh-cw" class="w-3 h-3"></i> ${l.d.in} <span class="text-slate-400 text-[10px]">x</span> ${l.d.out}</span>`; }
-              else if(l.type=='lineup'){ c='text-slate-700'; h=`<div class="bg-slate-100 p-2 rounded-lg text-[10px] space-y-1 my-1 border border-slate-200"><div class="font-bold text-indigo-600 border-b border-slate-200 pb-1 mb-1 uppercase tracking-wider">${l.text}</div>${l.d.html}</div>`; }
-              else{ c='text-slate-500'; h=`<span class='bg-slate-100 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider'>${l.text}</span>`; }
-              if(l.type!=='lineup') btn=`<button onclick="deleteLog(${l.id})" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"><i data-lucide="trash-2" class="w-3 h-3"></i></button>`;
-              tr.innerHTML=`<td class="px-3 py-2 font-mono text-slate-400 w-12 align-top text-[10px] pt-3">${l.time}</td><td class="px-1 py-2 ${c} align-middle w-full">${h}</td><td class="px-2 py-2 text-right align-top pt-2">${btn}</td>`;
-              el.prepend(tr);
-          });
-          document.getElementById('score-text').textContent = `${SCORE.home} - ${SCORE.away}`;
-          lucide.createIcons();
-      };
-      
-      const updateUI = () => { renderSquadList(); renderPitch(); renderSquadBreakdown(); renderLog(); };
-      
-      const saveStartingLineup = () => {
-          const activePlayers = getStarters();
-          if (activePlayers.length === 0) { alert("No hay jugadores en el campo para guardar la alineación."); return; }
-          const lineupData = { GK: [], DEF: [], MED: [], DEL: [] };
-          const currentPosData = getCurrentFormation();
-          
-          LINEUP_IDS.forEach((pid, index) => { 
-              if (pid) {
-                  // Obtener rol dinámico según la formación actual
-                  const role = currentPosData[index].role;
-                  lineupData[role].push(getPlayerById(pid).name); 
-              }
-          });
-          const formatLine = (label, names) => names.length ? `<div class='flex gap-1'><span class='font-bold text-slate-500 w-14'>${label}:</span> <span class='flex-1'>${names.join(', ')}</span></div>` : '';
-          const htmlContent = [formatLine('Portero', lineupData.GK),formatLine('Defensas', lineupData.DEF),formatLine('Medios', lineupData.MED),formatLine('Delantero', lineupData.DEL)].join('');
-          addLog('lineup', `Alineación Inicial (${MATCH_STATE.period}ª Parte) [${currentFormationKey}]`, { html: htmlContent });
-      };
-      
-      // LOGICA PARTIDO Y UTILS
-      let activeP=null, pRect=null;
-      const startDrag = (e) => { const t = e.target.closest('.player-avatar'); if(!t || e.target.closest('.remove-btn')) return; if(e.type === 'touchstart') document.body.style.overscrollBehavior = 'none'; activeP = t; activeP.classList.add('dragging'); pRect = document.getElementById('pitch').getBoundingClientRect(); document.addEventListener('mousemove', drag, {passive: false}); document.addEventListener('mouseup', endDrag); document.addEventListener('touchmove', drag, {passive: false}); document.addEventListener('touchend', endDrag); };
-      const drag = (e) => { if(!activeP) return; if(e.cancelable) e.preventDefault(); const cX = e.touches ? e.touches[0].clientX : e.clientX; const cY = e.touches ? e.touches[0].clientY : e.clientY; let x = ((cX - pRect.left) / pRect.width) * 100; let y = ((cY - pRect.top) / pRect.height) * 100; x = Math.max(0, Math.min(100, x)); y = Math.max(0, Math.min(100, y)); activeP.style.left = `${x}%`; activeP.style.top = `${y}%`; };
-      const endDrag = () => { if(!activeP) return; activeP.classList.remove('dragging'); const pid = parseInt(activeP.dataset.playerId); CUSTOM_POSITIONS[pid] = { x: parseFloat(activeP.style.left), y: parseFloat(activeP.style.top) }; activeP = null; document.body.style.overscrollBehavior = ''; document.removeEventListener('mousemove', drag); document.removeEventListener('mouseup', endDrag); document.removeEventListener('touchmove', drag); document.removeEventListener('touchend', endDrag); };
-      const formatTime = (ms) => { const s = Math.floor(ms/1000); const lim = MATCH_STATE.period===1 ? 1500 : 3000; const cur = s - (MATCH_STATE.period===2 ? 1500 : 0); if(s < lim) return {t:`${Math.floor(cur/60).toString().padStart(2,'0')}:${(cur%60).toString().padStart(2,'0')}`, a:false}; const a = s - lim; return {t:`25:00 +${Math.floor(a/60)}:${(a%60).toString().padStart(2,'0')}`, a:true}; };
-      const updateTimerDisplay = () => { let t = MATCH_STATE.accumulatedMs; if(MATCH_STATE.isRunning) t += Date.now() - MATCH_STATE.startTime; MATCH_STATE.displayMs = t; const f = formatTime(t); const el = document.getElementById('timer-display'); el.textContent = f.t; el.className = `text-3xl font-bold tabular-nums ${f.a ? 'text-amber-400' : 'text-white'}`; };
-      const toggleTimer = () => { if(MATCH_STATE.isRunning) { clearInterval(MATCH_STATE.intervalId); MATCH_STATE.accumulatedMs += Date.now() - MATCH_STATE.startTime; MATCH_STATE.isRunning = false; document.getElementById('timer-status').classList.add('hidden'); document.getElementById('toggle-timer-btn').innerHTML='<i data-lucide="play" class="w-6 h-6"></i>'; document.getElementById('toggle-timer-btn').classList.remove('bg-red-100', 'text-red-700'); document.getElementById('toggle-timer-btn').classList.add('bg-green-100', 'text-green-700'); } else { MATCH_STATE.startTime = Date.now(); MATCH_STATE.isRunning = true; MATCH_STATE.intervalId = setInterval(updateTimerDisplay, 1000); document.getElementById('timer-status').classList.remove('hidden'); document.getElementById('toggle-timer-btn').innerHTML='<i data-lucide="pause" class="w-6 h-6"></i>'; document.getElementById('toggle-timer-btn').classList.remove('bg-green-100', 'text-green-700'); document.getElementById('toggle-timer-btn').classList.add('bg-red-100', 'text-red-700'); } lucide.createIcons(); };
-      const resetTimer = () => { if(MATCH_STATE.isRunning) toggleTimer(); if(confirm("¿Reiniciar cronómetro a 00:00?")) { MATCH_STATE = {period:1,isRunning:false,startTime:null,accumulatedMs:0,displayMs:0,intervalId:null}; updateTimerDisplay(); updateUI(); document.getElementById('period-1-btn').className = 'period-btn active flex-1 py-1.5 transition-colors'; document.getElementById('period-2-btn').className = 'period-btn inactive flex-1 py-1.5 transition-colors'; } };
-      const switchPeriod = (p) => { if(MATCH_STATE.isRunning) toggleTimer(); MATCH_STATE.period = p; MATCH_STATE.accumulatedMs = p === 2 ? 1500000 : 0; MATCH_STATE.displayMs = MATCH_STATE.accumulatedMs; addLog('info', `Inicio ${p}ª Parte`); updateTimerDisplay(); const b1 = document.getElementById('period-1-btn'), b2 = document.getElementById('period-2-btn'); if(p === 1) { b1.className = 'period-btn active flex-1 py-1.5 transition-colors'; b2.className = 'period-btn inactive flex-1 py-1.5 transition-colors'; } else { b1.className = 'period-btn inactive flex-1 py-1.5 transition-colors'; b2.className = 'period-btn active flex-1 py-1.5 transition-colors'; } };
-      const changeAwayScore = (i) => { SCORE.away = Math.max(0, SCORE.away + i); if(i > 0) addLog('goal_away', 'Gol Rival'); document.getElementById('score-away').textContent = SCORE.away; updateUI(); };
-      const addLog = (ty, tx, d) => { MATCH_LOG.push({id:Date.now(), time:formatTime(MATCH_STATE.displayMs).t, type:ty, text:tx, d}); if(ty=='goal') SCORE.home++; if(ty=='own_goal') SCORE.away++; document.getElementById('score-home').textContent=SCORE.home; document.getElementById('score-away').textContent=SCORE.away; renderLog(); };
-      const deleteLog = (id) => { if(!confirm("¿Eliminar este evento?")) return; const l = MATCH_LOG.find(x => x.id === id); if(l){ if(l.type=='goal') SCORE.home--; if(l.type.includes('goal') && l.type!='goal') SCORE.away--; MATCH_LOG = MATCH_LOG.filter(x => x.id !== id); document.getElementById('score-home').textContent=SCORE.home; document.getElementById('score-away').textContent=SCORE.away; renderLog(); } };
-      const toggleCalledUp = (id) => { const p = getPlayerById(id); p.calledUp = !p.calledUp; if(!p.calledUp){ const i = LINEUP_IDS.indexOf(id); if(i > -1) LINEUP_IDS[i] = null; } updateUI(); };
-      const clearPitch = () => { if(confirm("¿Limpiar la pizarra táctica?")) { LINEUP_IDS.fill(null); CUSTOM_POSITIONS={}; updateUI(); } };
-      
-      const showBenchSelector = (idx) => { 
-          const b = getBench(); 
-          // Usar la formación actual para determinar el rol del slot
-          const currentForm = getCurrentFormation();
-          const role = currentForm[idx].role; 
-          const v = b.filter(p => role=='GK' ? p.role=='GK' : p.role=='FIELD'); 
-          if(!v.length) return showCustomModal('Info', 'Sin jugadores disponibles para esta posición'); 
-          const m = document.getElementById('modal-content'); 
-          m.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="font-bold text-lg">Elegir ${role}</h3><button onclick="closeModal()" class="text-slate-400"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="space-y-2 max-h-60 overflow-y-auto pr-1">${v.map(p => `<div onclick="assignPlayer(${p.id},${idx})" class="p-3 border rounded-xl cursor-pointer hover:bg-blue-50 flex gap-3 font-bold items-center transition-colors"><span class="bg-slate-800 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-sm">${p.number}</span><span class="text-slate-700">${p.name}</span></div>`).join('')}</div>`; 
-          document.getElementById('action-modal').classList.remove('hidden'); document.getElementById('action-modal').classList.add('flex'); lucide.createIcons(); 
-      };
-      
-      const assignPlayer = (pid, idx) => { const prev = LINEUP_IDS.indexOf(pid); if(prev > -1) LINEUP_IDS[prev] = null; LINEUP_IDS[idx] = pid; closeModal(); updateUI(); };
-      const removePlayerFromPitch = (pid) => { const i = LINEUP_IDS.indexOf(parseInt(pid)); if(i > -1) LINEUP_IDS[i] = null; updateUI(); };
-      
-      // NUEVO HELPER PARA EL TOGGLE
-      window.toggleGoalInputs = () => {
-          const ogRival = document.getElementById('rival_og_check').checked;
-          const ogOur = document.getElementById('og_check').checked;
-          
-          const sc = document.getElementById('sc');
-          const as = document.getElementById('as');
-          
-          // Si es autogol del rival (gol para nosotros) O autogol nuestro (gol para rival)
-          // No tiene sentido seleccionar goleador nuestro para el gol
-          const disable = ogRival || ogOur;
-          
-          sc.disabled = disable;
-          as.disabled = disable;
-          
-          if(disable) {
-              sc.classList.add('opacity-50', 'bg-slate-100');
-              as.classList.add('opacity-50', 'bg-slate-100');
-          } else {
-              sc.classList.remove('opacity-50', 'bg-slate-100');
-              as.classList.remove('opacity-50', 'bg-slate-100');
-          }
-
-          // Mutuamente excluyentes
-          if (ogRival) document.getElementById('og_check').checked = false;
-          if (ogOur) document.getElementById('rival_og_check').checked = false;
-      };
-
-      const showGoalModal = () => { 
-          const s = getStarters(); 
-          if(!s.length) return showCustomModal('Error', 'No hay jugadores en el campo'); 
-          
-          const options = s.map(p => `<option value="${p.id}">${p.number} - ${p.name}</option>`).join(''); 
-          
-          document.getElementById('modal-content').innerHTML = `
-            <h3 class="font-bold text-lg mb-4 flex items-center gap-2"><i data-lucide="trophy" class="w-5 h-5 text-yellow-500"></i> Registrar Gol</h3>
-            
-            <div class="space-y-2 mb-4">
-                <!-- Checkbox 1: Autogol nuestro (Malo) -->
-                <div class="bg-red-50 p-2 rounded-lg border border-red-100">
-                   <label class="flex items-center gap-2 cursor-pointer font-bold text-xs text-red-700">
-                       <input type="checkbox" id="og_check" onchange="toggleGoalInputs()"> 
-                       AUTOGOL NUESTRO (Suma al rival)
-                   </label>
+    <!-- HEADER (Forcefully Fixed) -->
+    <header
+        class="glass-panel border-b border-white/40 fixed-header-force shadow-sm p-2 md:p-3 backdrop-blur-md transition-all duration-300">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2 md:gap-3">
+            <!-- Logo & Título -->
+            <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+                <div class="flex items-center gap-3">
+                    <div class="relative group cursor-pointer transform hover:scale-105 transition-transform duration-300"
+                        onclick="document.getElementById('logo-upload').click()">
+                        <img id="team-logo" src="" alt="Escudo"
+                            class="w-10 h-14 md:w-12 md:h-16 object-contain drop-shadow-lg" />
+                        <div
+                            class="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 rounded-lg text-white text-[9px] font-black tracking-widest uppercase pointer-events-none transition-all backdrop-blur-[2px]">
+                            CAMBIAR</div>
+                    </div>
+                    <input type="file" id="logo-upload" hidden accept="image/*"
+                        onchange="MoncofaApp.Main.handleLogoUpload(this)">
+                    <div class="flex flex-col">
+                        <h1 class="font-black text-lg md:text-3xl text-slate-800 tracking-tighter leading-none font-display uppercase"
+                            id="app-team-name">C.F. PLATGES DE MONCOFA</h1>
+                        <button onclick="MoncofaApp.Main.showKitConfig()"
+                            class="text-[10px] md:text-xs text-slate-500 hover:text-blue-600 font-bold flex items-center gap-1.5 mt-0.5 md:mt-1 transition-colors w-fit tracking-wide uppercase"><i
+                                data-lucide="settings-2" class="w-3 h-3 md:w-3.5 md:h-3.5"></i> Configuración</button>
+                    </div>
                 </div>
-                <!-- Checkbox 2: Autogol rival (Bueno) -->
-                <div class="bg-green-50 p-2 rounded-lg border border-green-100">
-                   <label class="flex items-center gap-2 cursor-pointer font-bold text-xs text-green-700">
-                       <input type="checkbox" id="rival_og_check" onchange="toggleGoalInputs()"> 
-                       AUTOGOL DEL RIVAL (Suma a nosotros)
-                   </label>
+
+                <!-- Mobile Controls (Timer) moved here for better space usage? No, keep it standard for now. -->
+            </div>
+
+            <!-- Marcador Wrapper (Scrollable on extremely small screens if needed, otherwise centered) -->
+            <div
+                class="flex flex-col items-center w-full md:w-auto transform scale-90 md:scale-100 origin-center md:origin-right">
+
+                <div class="flex items-center gap-3 md:gap-5 justify-center w-full">
+                    <!-- Home Logo Container -->
+                    <div id="home-team-display" class="w-12 md:w-20 flex justify-center"></div>
+
+                    <div class="flex flex-col w-auto min-w-[140px] md:min-w-[180px]">
+                        <!-- Scoreboard Glass (Narrower) -->
+                        <div
+                            class="scoreboard-glass bg-slate-900 text-white px-2 py-1 md:px-3 md:py-2 rounded-t-xl flex items-center justify-center gap-2 md:gap-3 font-mono shadow-2xl border border-white/10 w-full relative">
+                            <!-- Shine effect -->
+                            <div class="absolute top-0 left-0 w-full h-1/2 bg-white/5 pointer-events-none"></div>
+                            <!-- JS Fills This -->
+                        </div>
+
+                        <div
+                            class="flex items-center bg-slate-800 text-white rounded-b-xl overflow-hidden text-[10px] uppercase font-bold w-full border-x border-b border-white/10 shadow-lg">
+                            <button id="period-1-btn" onclick="MoncofaApp.Main.switchPeriod(1)"
+                                class="period-btn active flex-1 py-1.5 md:py-2 transition-colors tracking-wider text-center hover:bg-slate-700">1ª
+                                P</button>
+                            <button id="period-2-btn" onclick="MoncofaApp.Main.switchPeriod(2)"
+                                class="period-btn inactive flex-1 py-1.5 md:py-2 transition-colors tracking-wider text-center hover:bg-slate-700">2ª
+                                P</button>
+                        </div>
+                    </div>
+
+                    <!-- Away Logo Container -->
+                    <div id="away-team-display" class="w-12 md:w-20 flex justify-center"></div>
+                </div>
+
+            </div>
+
+            <!-- Controles (Horizontal scroll on very small mobile if items overflow) -->
+            <div class="flex gap-3 justify-center w-full md:w-auto mt-1 md:mt-0">
+                <button id="theme-toggle-btn" onclick="MoncofaApp.UI.toggleDarkMode()"
+                    class="p-2 md:p-3.5 bg-white rounded-full shadow-lg hover:bg-slate-100 hover:scale-105 transition-all active:scale-95 border border-slate-200">
+                    <i data-lucide="moon" class="w-5 h-5 md:w-6 md:h-6 text-slate-600"></i>
+                </button>
+
+                <button id="toggle-timer-btn" onclick="MoncofaApp.Main.toggleTimer()"
+                    class="p-2 md:p-3.5 rounded-full shadow-lg bg-green-500 text-white hover:bg-green-400 hover:shadow-green-500/30 hover:scale-105 transition-all active:scale-95 border-2 border-white/20"><i
+                        data-lucide="play" class="w-5 h-5 md:w-6 md:h-6 fill-current"></i></button>
+
+                <button onclick="MoncofaApp.Main.stopTimer()"
+                    class="p-2 md:p-3.5 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-500 hover:scale-105 transition-all active:scale-95 border border-white/20"
+                    title="Finalizar Tiempo"><i data-lucide="square"
+                        class="w-5 h-5 md:w-6 md:h-6 fill-current"></i></button>
+
+                <button onclick="MoncofaApp.Main.resetTimer()"
+                    class="p-2 md:p-3.5 bg-white text-slate-600 rounded-full shadow-lg hover:bg-slate-50 hover:text-blue-600 hover:scale-105 transition-all active:scale-95 border border-slate-200"><i
+                        data-lucide="rotate-ccw" class="w-5 h-5 md:w-6 md:h-6"></i></button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN -->
+    <main class="max-w-7xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Columna Izquierda -->
+        <div class="lg:col-span-7 flex flex-col gap-4 w-full">
+            <div class="glass-panel p-2 md:p-4 rounded-2xl shadow-inner border-2 border-white/20">
+                <div class='flex flex-wrap md:flex-nowrap justify-between items-center mb-4 gap-2'>
+                    <!-- SELECTOR DE FORMACIÓN -->
+                    <div class="flex items-center gap-2 w-full md:w-auto">
+                        <i data-lucide="layout-dashboard" class="w-5 h-5 text-slate-500"></i>
+                        <select id="formation-select" onchange="MoncofaApp.Main.changeFormation(this.value)"
+                            class="bg-white border border-slate-300 text-slate-800 text-lg font-extrabold rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-auto p-1.5 shadow-sm">
+                            <option value="3-3-1" selected>3-3-1</option>
+                            <option value="4-2-1">4-2-1</option>
+                            <option value="2-3-2">2-3-2</option>
+                            <option value="3-2-2">3-2-2</option>
+                            <option value="2-4-1">2-4-1</option>
+                            <option value="3-4-0">3-4-0</option>
+                            <option value="4-3-0">4-3-0</option>
+                        </select>
+                    </div>
+
+                    <!-- Scrollable Toolbar for Mobile -->
+                    <div class="flex gap-2 items-center overflow-x-auto w-full md:w-auto pb-2 md:pb-0 no-scrollbar">
+                        <button onclick="MoncofaApp.Drawing.toggleDrawingMode(this)"
+                            class="px-3 py-1.5 md:py-1 bg-pink-600 text-white rounded-lg text-xs font-bold hover:bg-pink-700 flex items-center gap-1 transition-colors shadow-sm whitespace-nowrap"><i
+                                data-lucide="pen-tool" class="w-4 h-4 md:w-3 md:h-3"></i> PIZARRA</button>
+                        <button onclick="MoncofaApp.TacticsManager.showLoadModal()"
+                            class="px-3 py-1.5 md:py-1 bg-fuchsia-600 text-white rounded-lg text-xs font-bold hover:bg-fuchsia-700 flex items-center gap-1 transition-colors shadow-sm whitespace-nowrap"><i
+                                data-lucide="library" class="w-4 h-4 md:w-3 md:h-3"></i> TÁCTICAS</button>
+                        <button onclick="MoncofaApp.Main.downloadLineupImage()"
+                            class="px-3 py-1.5 md:py-1 bg-teal-600 text-white rounded-lg text-xs font-bold hover:bg-teal-700 flex items-center gap-1 transition-colors shadow-sm whitespace-nowrap"><i
+                                data-lucide="image" class="w-4 h-4 md:w-3 md:h-3"></i> JPG</button>
+                        <button onclick="MoncofaApp.Main.saveStartingLineup()"
+                            class="px-3 py-1.5 md:py-1 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 flex items-center gap-1 transition-colors shadow-sm whitespace-nowrap"><i
+                                data-lucide="save" class="w-4 h-4 md:w-3 md:h-3"></i> ALINEACIÓN</button>
+                        <button onclick="MoncofaApp.Main.clearPitch()"
+                            class="px-3 py-1.5 md:py-1 bg-red-100 text-red-700 rounded-lg text-xs font-bold hover:bg-red-200 flex items-center gap-1 transition-colors whitespace-nowrap"><i
+                                data-lucide="trash-2" class="w-4 h-4 md:w-3 md:h-3"></i></button>
+
+                        <!-- Separator -->
+                        <div class="h-6 w-px bg-slate-300 mx-1"></div>
+
+                        <!-- Animation Controls -->
+                        <button onclick="MoncofaApp.Animation.addFrame()"
+                            class="px-3 py-1.5 md:py-1 bg-violet-600 text-white rounded-lg text-xs font-bold hover:bg-violet-700 flex items-center gap-1 transition-colors shadow-sm whitespace-nowrap"><i
+                                data-lucide="camera" class="w-4 h-4 md:w-3 md:h-3"></i> <span id="anim-frame-count"
+                                class="bg-white text-violet-600 text-[10px] px-1.5 rounded-full">0</span></button>
+
+                        <button id="anim-play-btn" onclick="MoncofaApp.Animation.togglePlay()"
+                            class="px-3 py-1.5 md:py-1 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 flex items-center gap-1 transition-colors shadow-sm whitespace-nowrap"><i
+                                data-lucide="play" class="w-4 h-4 md:w-3 md:h-3 fill-white"></i></button>
+
+                        <select onchange="MoncofaApp.Animation.setSpeed(this.value)"
+                            class="bg-violet-100 text-violet-700 text-xs font-bold rounded-lg border-none py-1.5 md:py-1 px-1 focus:ring-0 cursor-pointer outline-none">
+                            <option value="0.25">0.25x</option>
+                            <option value="0.5">0.5x</option>
+                            <option value="1" selected>1x</option>
+                        </select>
+
+                        <button onclick="MoncofaApp.Animation.clearFrames()"
+                            class="px-3 py-1.5 md:py-1 bg-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-300 flex items-center gap-1 transition-colors shadow-sm whitespace-nowrap"><i
+                                data-lucide="file-x" class="w-4 h-4 md:w-3 md:h-3"></i></button>
+                    </div>
+                </div>
+
+                <!-- PIZARRA - w-full on mobile, fixed aspect ratio -->
+                <div id="pitch"
+                    class="pitch w-full md:w-auto h-auto md:h-[80vh] mx-auto aspect-[686/1024] rounded-2xl shadow-2xl border-[4px] md:border-[6px] border-white relative overflow-hidden ring-1 ring-black/10 select-none">
+                    <div
+                        class="pitch-line absolute inset-5 border-2 border-white/80 pointer-events-none mix-blend-overlay">
+                    </div>
+                    <div
+                        class="pitch-line absolute top-1/2 left-5 right-5 h-0.5 bg-white/80 pointer-events-none mix-blend-overlay">
+                    </div>
+                    <div
+                        class="pitch-line absolute top-1/2 left-1/2 w-28 h-28 border-2 border-white/80 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none mix-blend-overlay">
+                    </div>
+                    <div
+                        class="pitch-line absolute top-5 left-1/2 w-[60%] h-[15%] border-2 border-t-0 border-white/80 -translate-x-1/2 pointer-events-none mix-blend-overlay">
+                    </div>
+                    <div
+                        class="pitch-line absolute top-5 left-1/2 w-[30%] h-[6%] border-2 border-t-0 border-white/80 -translate-x-1/2 pointer-events-none mix-blend-overlay">
+                    </div>
+                    <div
+                        class="pitch-line absolute bottom-5 left-1/2 w-[60%] h-[15%] border-2 border-b-0 border-white/80 -translate-x-1/2 pointer-events-none mix-blend-overlay">
+                    </div>
+                    <div
+                        class="pitch-line absolute bottom-5 left-1/2 w-[30%] h-[6%] border-2 border-b-0 border-white/80 -translate-x-1/2 pointer-events-none mix-blend-overlay">
+                    </div>
                 </div>
             </div>
-            
-            <div class="mb-4">
-                <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Goleador</label>
-                <select id="sc" class="w-full border p-3 rounded-lg bg-white font-medium focus:ring-2 focus:ring-green-500 outline-none">
-                    <option value="">Seleccionar Jugador...</option>
-                    ${options}
-                </select>
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="MoncofaApp.Main.showGoalModal()"
+                    class="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white font-black py-4 rounded-2xl shadow-xl shadow-green-200 flex justify-center items-center gap-2 transform active:scale-95 transition-all w-full border-b-4 border-green-700 active:border-b-0 active:translate-y-1"><i
+                        data-lucide="trophy" class="w-5 h-5"></i> <span class="hidden sm:inline">REGISTRAR</span>
+                    GOL</button>
+                <button onclick="MoncofaApp.Main.showSubModal()"
+                    class="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-black py-4 rounded-2xl shadow-xl shadow-blue-200 flex justify-center items-center gap-2 transform active:scale-95 transition-all w-full border-b-4 border-blue-700 active:border-b-0 active:translate-y-1"><i
+                        data-lucide="replace" class="w-5 h-5"></i> <span class="hidden sm:inline">REALIZAR</span>
+                    CAMBIO</button>
             </div>
+        </div>
 
-            <div class="mb-6">
-                <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Asistencia (Opcional)</label>
-                <select id="as" class="w-full border p-3 rounded-lg bg-white font-medium focus:ring-2 focus:ring-blue-500 outline-none">
-                    <option value="">Sin asistencia / Acción individual</option>
-                    ${options}
-                </select>
+        <!-- Columna Derecha -->
+        <div class="lg:col-span-5 flex flex-col gap-6">
+            <div
+                class="glass-panel rounded-2xl shadow-lg border border-white/40 flex flex-col overflow-hidden max-h-[400px]">
+                <div
+                    class="bg-white/50 p-4 border-b border-white/20 flex justify-between items-center sticky top-0 z-10 backdrop-blur-md">
+                    <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-wide"><i
+                            data-lucide="users" class="w-4 h-4 text-blue-600"></i> CONVOCATORIA</h3>
+                    <div class="flex items-center gap-2">
+                        <button onclick="MoncofaApp.SquadManager.openManager()"
+                            class="text-[10px] bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded shadow-sm font-bold border border-blue-600 transition-colors uppercase flex items-center gap-1 shadow-md">
+                            <i data-lucide="settings-2" class="w-3 h-3"></i> Gestionar
+                        </button>
+                        <span id="bench-count"
+                            class="text-[10px] bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-bold shadow-sm border border-slate-200">16
+                            DISP.</span>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-y-auto p-2 space-y-2 bg-slate-50/30">
+                    <div id="squad-list" class="space-y-1.5"></div>
+                </div>
             </div>
+            <div
+                class="glass-panel rounded-2xl shadow-lg border border-white/40 flex-1 flex flex-col min-h-[300px] max-h-[350px] overflow-hidden">
+                <div
+                    class="bg-white/50 p-3 border-b border-white/20 font-bold text-slate-700 text-sm flex items-center justify-between shadow-sm sticky top-0 z-10 backdrop-blur-md uppercase tracking-wide">
+                    <span class='flex items-center gap-2'><i data-lucide="history" class="w-4 h-4 text-slate-500"></i>
+                        Acta del Partido</span>
+                    <div class="flex items-center gap-2">
+                        <button onclick="MoncofaApp.Main.resetMatch()"
+                            class="text-[10px] bg-red-100 text-red-600 px-2 py-1 rounded shadow hover:bg-red-200 transition-colors flex items-center gap-1 font-bold"
+                            title="Empezar Nuevo Partido (Borrar Progreso)">
+                            <i data-lucide="trash-2" class="w-3 h-3"></i> NUEVO PARTIDO
+                        </button>
+                        <button onclick="MoncofaApp.Main.downloadPDF()"
+                            class="text-[10px] bg-slate-800 text-white px-2 py-1 rounded shadow hover:bg-slate-700 transition-colors flex items-center gap-1 font-bold"
+                            title="Descargar Acta"><i data-lucide="file-down" class="w-3 h-3"></i> PDF</button>
+                    </div>
+                </div>
+                <div id="log-container" class="flex-1 overflow-y-auto scroll-smooth bg-slate-50/30">
+                    <table class="w-full text-xs text-left">
+                        <tbody id="match-log" class="divide-y divide-slate-100/50"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
 
-            <div class="grid grid-cols-2 gap-3">
-                <button onclick="closeModal()" class="text-slate-500 font-bold py-3 hover:bg-slate-100 rounded-lg">Cancelar</button>
-                <button onclick="confirmGoal()" class="bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold shadow-lg shadow-green-200">Guardar Gol</button>
-            </div>`; 
-          
-          document.getElementById('action-modal').classList.remove('hidden'); 
-          document.getElementById('action-modal').classList.add('flex'); 
-          lucide.createIcons();
-      };
 
-      const confirmGoal = () => { 
-          const sid = document.getElementById('sc').value; 
-          const aid = document.getElementById('as').value;
-          const og_our = document.getElementById('og_check').checked; 
-          const og_rival = document.getElementById('rival_og_check').checked;
-          
-          // Caso 1: Autogol del Rival (Suma a nosotros, sin jugador)
-          if (og_rival) {
-              addLog('goal', 'Gol', { scorer: 'Autogol Rival', assist: null });
-              closeModal();
-              return;
-          }
+    <!-- Resumen al pie -->
+    <section class="max-w-7xl mx-auto p-4 mt-6 mb-12">
+        <h2 class="text-xl font-black text-slate-800 mb-4 border-b pb-2 flex items-center gap-2"><i
+                data-lucide="clipboard-check" class="w-5 h-5 text-slate-400"></i> Resumen</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="glass-panel p-4 rounded-xl shadow border border-green-100 bg-green-50/30">
+                <h3 class="font-bold text-green-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><i
+                        data-lucide="check-circle" class="w-4 h-4"></i> Titulares (<span id="starters-count">0</span>)
+                </h3>
+                <ul id="starters-list" class="space-y-1 text-xs font-medium text-slate-600"></ul>
+            </div>
+            <div class="glass-panel p-4 rounded-xl shadow border border-blue-100 bg-blue-50/30">
+                <h3 class="font-bold text-blue-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><i
+                        data-lucide="shirt" class="w-4 h-4"></i> Suplentes (<span id="bench-list-count">0</span>)</h3>
+                <ul id="bench-list" class="space-y-1 text-xs font-medium text-slate-600"></ul>
+            </div>
+            <div class="glass-panel p-4 rounded-xl shadow border border-red-100 bg-red-50/30">
+                <h3 class="font-bold text-red-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><i
+                        data-lucide="x-circle" class="w-4 h-4"></i> No Convocados (<span id="uncalled-count">0</span>)
+                </h3>
+                <ul id="uncalled-list" class="space-y-1 text-xs font-medium text-slate-600"></ul>
+            </div>
+        </div>
+    </section>
 
-          // Caso 2: Autogol Nuestro (Suma al rival, necesita jugador culpable? No es estricto en logica previa)
-          if (og_our) {
-               // Si seleccionó jugador, lo ponemos, sino genérico
-               let culpritName = "Jugador";
-               if(sid) { const s = getPlayerById(sid); culpritName = s.name; }
-               addLog('own_goal', `Autogol ${culpritName}`, {scorer: culpritName});
-               closeModal();
-               return;
-          }
+    <script src="js/constants.js"></script>
+    <script src="js/logo-data.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/squad-manager.js"></script>
+    <script src="js/drawing_new.js?v=9999"></script>
+    <script src="js/animation.js"></script> <!-- Animation Module -->
+    <script src="js/tactics-manager.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/export-manager.js"></script>
+    <script src="js/drag-drop-manager.js"></script>
+    <!-- Modal Genérico (Moved to bottom & High Z-Index) -->
+    <div id="action-modal"
+        class="fixed inset-0 bg-black/60 z-[9999] hidden items-start justify-center pt-40 p-4 backdrop-blur-sm overflow-y-auto">
+        <div id="modal-content"
+            class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm border-t-8 border-blue-500 animate-in zoom-in duration-200">
+        </div>
+    </div>
 
-          // Caso 3: Gol Normal
-          if(!sid) return; 
-          
-          const s = getPlayerById(sid); 
-          const a = aid ? getPlayerById(aid) : null;
-
-          const data = { scorer: s.name };
-          if (a) data.assist = a.name;
-          addLog('goal', 'Gol', data); 
-          
-          closeModal(); 
-      };
-
-      const showSubModal = () => { const s = getStarters(), b = getBench(); if(!s.length || !b.length) return showCustomModal('Info', 'Se necesitan titulares y suplentes para realizar un cambio.'); const so = s.map(p => `<option value="${p.id}">${p.number} ${p.name}</option>`).join(''); const bo = b.map(p => `<option value="${p.id}">${p.number} ${p.name}</option>`).join(''); document.getElementById('modal-content').innerHTML = `<h3 class="font-bold text-lg mb-4 flex items-center gap-2"><i data-lucide="replace" class="w-5 h-5 text-blue-500"></i> Realizar Cambio</h3><div class="grid grid-cols-2 gap-4 mb-6"><div class="bg-red-50 p-2 rounded-lg border border-red-100"><label class="text-xs font-bold text-red-500 block mb-1 uppercase">Sale</label><select id="sout" class="w-full border-0 bg-transparent font-bold text-sm focus:ring-0 p-0 text-slate-700">${so}</select></div><div class="bg-green-50 p-2 rounded-lg border border-green-100"><label class="text-xs font-bold text-green-600 block mb-1 uppercase">Entra</label><select id="sin" class="w-full border-0 bg-transparent font-bold text-sm focus:ring-0 p-0 text-slate-700">${bo}</select></div></div><div class="grid grid-cols-2 gap-3"><button onclick="closeModal()" class="text-slate-500 font-bold py-3 hover:bg-slate-100 rounded-lg">Cancelar</button><button onclick="confirmSub()" class="bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold shadow-lg shadow-blue-200">Confirmar</button></div>`; document.getElementById('action-modal').classList.remove('hidden'); document.getElementById('action-modal').classList.add('flex'); lucide.createIcons(); };
-      const confirmSub = () => { const oid = parseInt(document.getElementById('sout').value); const iid = parseInt(document.getElementById('sin').value); const idx = LINEUP_IDS.indexOf(oid); if(idx > -1){ LINEUP_IDS[idx] = iid; if(CUSTOM_POSITIONS[oid]){ CUSTOM_POSITIONS[iid] = CUSTOM_POSITIONS[oid]; delete CUSTOM_POSITIONS[oid]; } const po = getPlayerById(oid), pi = getPlayerById(iid); addLog('sub', 'Cambio', {out:po.name, in:pi.name}); closeModal(); updateUI(); } };
-      const showKitConfig = () => { document.getElementById('modal-content').innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="font-bold text-lg flex items-center gap-2"><i data-lucide="palette" class="w-5 h-5 text-blue-500"></i> Equipaciones</h3><button onclick="closeModal()" class="text-slate-400"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="space-y-6"><div><h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Jugadores</h4><div class="grid grid-cols-3 gap-3"><div class="color-picker-wrapper bg-slate-100"><input type="color" value="${getCssVar('--team-shirt')}" oninput="updateKitColor('--team-shirt', this.value)"><div class="color-label">Camiseta</div></div><div class="color-picker-wrapper bg-slate-100"><input type="color" value="${getCssVar('--team-shorts')}" oninput="updateKitColor('--team-shorts', this.value)"><div class="color-label">Pantalón</div></div><div class="color-picker-wrapper bg-slate-100"><input type="color" value="${getCssVar('--team-socks')}" oninput="updateKitColor('--team-socks', this.value)"><div class="color-label">Medias</div></div></div></div><div><h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Porteros</h4><div class="grid grid-cols-3 gap-3"><div class="color-picker-wrapper bg-slate-100"><input type="color" value="${getCssVar('--gk-shirt')}" oninput="updateKitColor('--gk-shirt', this.value)"><div class="color-label">Camiseta</div></div><div class="color-picker-wrapper bg-slate-100"><input type="color" value="${getCssVar('--gk-shorts')}" oninput="updateKitColor('--gk-shorts', this.value)"><div class="color-label">Pantalón</div></div><div class="color-picker-wrapper bg-slate-100"><input type="color" value="${getCssVar('--gk-socks')}" oninput="updateKitColor('--gk-socks', this.value)"><div class="color-label">Medias</div></div></div></div></div><div class="mt-6 pt-4 border-t flex justify-end"><button onclick="resetKitColors()" class="text-xs text-red-500 font-bold hover:underline">Restablecer colores originales</button></div>`; document.getElementById('action-modal').classList.remove('hidden'); document.getElementById('action-modal').classList.add('flex'); lucide.createIcons(); };
-      const resetKitColors = () => { if(confirm("¿Volver a los colores originales?")) { Object.keys(DEFAULT_COLORS).forEach(key => document.documentElement.style.setProperty(key, DEFAULT_COLORS[key])); localStorage.removeItem('moncofa_kit_colors'); closeModal(); } };
-      const closeModal = () => { document.getElementById('action-modal').classList.add('hidden'); document.getElementById('action-modal').classList.remove('flex'); };
-      const showCustomModal = (t, m) => { document.getElementById('modal-content').innerHTML = `<div class="text-center"><h3 class="font-bold text-lg text-slate-800 mb-2">${t}</h3><p class="text-slate-600 mb-6 text-sm">${m}</p><button onclick="closeModal()" class="bg-slate-800 text-white w-full py-2 rounded-lg font-bold">Entendido</button></div>`; document.getElementById('action-modal').classList.remove('hidden'); document.getElementById('action-modal').classList.add('flex'); };
-
-      window.onload = () => { updateTimerDisplay(); updateUI(); lucide.createIcons(); loadSavedLogo(); loadSavedKit(); };
-  </script>
+    <script src="js/main.js"></script>
 </body>
+
 </html>

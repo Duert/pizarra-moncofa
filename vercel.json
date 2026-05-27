@@ -1,0 +1,15 @@
+{
+  "cleanUrls": true,
+  "redirects": [
+    {
+      "source": "/padres",
+      "destination": "/v2/parents.html",
+      "permanent": false
+    },
+    {
+      "source": "/",
+      "destination": "/v2/",
+      "permanent": false
+    }
+  ]
+}
