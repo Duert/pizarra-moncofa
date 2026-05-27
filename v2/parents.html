@@ -195,10 +195,15 @@
                 <!-- Last Matches and Next Match -->
                 <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
                     <div>
-                        <h3 class="font-black text-lg text-slate-800 uppercase border-b pb-3 mb-4 flex items-center gap-2">
-                            <i data-lucide="history" class="w-5 h-5 text-indigo-500"></i> Último Partido
-                        </h3>
-                        <div id="last-match-card" class="p-4 rounded-xl border border-slate-100 bg-slate-50/50 flex items-center justify-between gap-4 text-center">
+                        <div class="flex items-center justify-between border-b pb-3 mb-4 gap-2">
+                            <h3 class="font-black text-lg text-slate-800 uppercase flex items-center gap-2">
+                                <i data-lucide="history" class="w-5 h-5 text-indigo-500"></i> Detalle de Partido
+                            </h3>
+                            <select id="matchday-selector" onchange="MoncofaParents.UI.changeMatchday(this.value)" class="bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 max-w-[160px]">
+                                <!-- Loaded via JS -->
+                            </select>
+                        </div>
+                        <div id="last-match-card" class="p-4 rounded-xl border border-slate-100 bg-slate-50/50 flex flex-col gap-3">
                             <!-- Populated dynamically -->
                             <p class="text-sm text-slate-400 font-bold mx-auto">No hay partidos registrados aún.</p>
                         </div>
@@ -234,7 +239,7 @@
                 <h3 class="font-black text-lg text-slate-800 uppercase border-b pb-3 mb-4 flex items-center gap-2">
                     <i data-lucide="zap" class="w-5 h-5 text-emerald-500"></i> Tabla de Goleadores (Pichichi)
                 </h3>
-                <div id="goals-ranking-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div id="goals-ranking-list" class="flex flex-col gap-3 max-w-2xl mx-auto">
                     <!-- Populated dynamically -->
                 </div>
             </div>
@@ -244,7 +249,7 @@
                 <h3 class="font-black text-lg text-slate-800 uppercase border-b pb-3 mb-4 flex items-center gap-2">
                     <i data-lucide="heart" class="w-5 h-5 text-blue-500"></i> Tabla de Asistencias
                 </h3>
-                <div id="assists-ranking-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div id="assists-ranking-list" class="flex flex-col gap-3 max-w-2xl mx-auto">
                     <!-- Populated dynamically -->
                 </div>
             </div>
@@ -254,7 +259,7 @@
                 <h3 class="font-black text-lg text-slate-800 uppercase border-b pb-3 mb-4 flex items-center gap-2">
                     <i data-lucide="clock" class="w-5 h-5 text-indigo-500"></i> Minutos de Juego acumulados
                 </h3>
-                <div id="minutes-ranking-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div id="minutes-ranking-list" class="flex flex-col gap-3 max-w-2xl mx-auto">
                     <!-- Populated dynamically -->
                 </div>
             </div>

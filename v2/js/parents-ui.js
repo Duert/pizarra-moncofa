@@ -8,6 +8,7 @@ MoncofaParents.UI = {
     selectedSeasonId: null,
     currentTab: 'standings',
     currentStatSubtab: 'goals',
+    selectedMatchId: null,
 
     // Raw fetched data for current season
     players: [],
@@ -153,6 +154,7 @@ MoncofaParents.UI = {
 
     changeSeason(seasonId) {
         this.selectedSeasonId = parseInt(seasonId);
+        this.selectedMatchId = null; // Reset selected match
         
         // Update header headers
         const currentSeason = this.seasons.find(s => s.id === this.selectedSeasonId);
@@ -423,35 +425,8 @@ MoncofaParents.UI = {
         document.getElementById('team-avg-gf').textContent = played > 0 ? (gf / played).toFixed(1) : '0.0';
         document.getElementById('team-avg-gc').textContent = played > 0 ? (gc / played).toFixed(1) : '0.0';
 
-        // Render Last Match
-        const lastMatchCard = document.getElementById('last-match-card');
-        if (lastMatchCard) {
-            if (matches.length > 0) {
-                // Sort matches by matchday descending to find the last one
-                const sorted = [...matches].sort((a, b) => b.matchday - a.matchday);
-                const last = sorted[0];
-                const ourScore = last.is_home ? last.home_score : last.away_score;
-                const rivalScore = last.is_home ? last.away_score : last.home_score;
-                const statusColor = ourScore > rivalScore ? 'bg-emerald-100 text-emerald-800' : (ourScore < rivalScore ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-800');
-                const statusText = ourScore > rivalScore ? 'Victoria' : (ourScore < rivalScore ? 'Derrota' : 'Empate');
-
-                lastMatchCard.innerHTML = `
-                    <div class="flex-1 flex flex-col items-center">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Jornada ${last.matchday || '?'}</span>
-                        <div class="flex items-center justify-center gap-3">
-                            <span class="font-black text-slate-700 text-sm">Moncofa</span>
-                            <span class="font-black text-2xl text-slate-800">${ourScore}</span>
-                            <span class="text-xs font-bold text-slate-400">vs</span>
-                            <span class="font-black text-2xl text-slate-800">${rivalScore}</span>
-                            <span class="font-bold text-slate-600 text-sm truncate max-w-[100px]">${last.rival_name}</span>
-                        </div>
-                        <span class="mt-2 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${statusColor}">${statusText}</span>
-                    </div>
-                `;
-            } else {
-                lastMatchCard.innerHTML = `<p class="text-sm text-slate-400 font-bold mx-auto">No hay partidos jugados registrados.</p>`;
-            }
-        }
+        // Render Match Details dropdown and card
+        this.renderMatchDetails(this.selectedMatchId);
 
         // Render Next Match
         const nextMatchCard = document.getElementById('next-match-card');
@@ -485,6 +460,133 @@ MoncofaParents.UI = {
                 nextMatchCard.innerHTML = `<p class="text-xs text-slate-500 font-bold mx-auto">Todos los partidos han sido jugados.</p>`;
             }
         }
+    },
+
+    changeMatchday(matchId) {
+        this.selectedMatchId = matchId ? parseInt(matchId) : null;
+        this.renderMatchDetails(this.selectedMatchId);
+    },
+
+    renderMatchDetails(selectedMatchId = null) {
+        const matches = this.matches;
+        const selector = document.getElementById('matchday-selector');
+        const lastMatchCard = document.getElementById('last-match-card');
+        if (!lastMatchCard) return;
+
+        if (matches.length === 0) {
+            if (selector) selector.innerHTML = '<option value="">Sin partidos</option>';
+            lastMatchCard.innerHTML = `<p class="text-sm text-slate-400 font-bold mx-auto text-center py-4">No hay partidos jugados registrados.</p>`;
+            return;
+        }
+
+        // Sort matches by matchday descending
+        const sortedMatches = [...matches].sort((a, b) => b.matchday - a.matchday);
+
+        // Populate matchday selector if it's empty or needs refresh
+        if (selector) {
+            selector.innerHTML = sortedMatches.map(m => `
+                <option value="${m.id}" ${selectedMatchId === m.id || (!selectedMatchId && m.id === sortedMatches[0].id) ? 'selected' : ''}>
+                    Jornada ${m.matchday}
+                </option>
+            `).join('');
+        }
+
+        // Selected match
+        const activeMatch = selectedMatchId 
+            ? matches.find(m => m.id === parseInt(selectedMatchId)) 
+            : sortedMatches[0];
+
+        if (!activeMatch) return;
+
+        const ourScore = activeMatch.is_home ? activeMatch.home_score : activeMatch.away_score;
+        const rivalScore = activeMatch.is_home ? activeMatch.away_score : activeMatch.home_score;
+        const statusColor = ourScore > rivalScore 
+            ? 'bg-emerald-100 text-emerald-800' 
+            : (ourScore < rivalScore ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-800');
+        const statusText = ourScore > rivalScore 
+            ? 'Victoria' 
+            : (ourScore < rivalScore ? 'Derrota' : 'Empate');
+
+        // Fetch goals and assists for this match
+        const matchStats = this.playerStats.filter(s => s.match_id === activeMatch.id);
+        const scorers = [];
+        const assistants = [];
+
+        matchStats.forEach(s => {
+            const player = this.players.find(p => p.id === s.player_id);
+            if (!player) return;
+
+            if (s.goals > 0) {
+                scorers.push({
+                    name: player.name,
+                    goals: s.goals
+                });
+            }
+            if (s.assists > 0) {
+                assistants.push({
+                    name: player.name,
+                    assists: s.assists
+                });
+            }
+        });
+
+        // Format scorers text
+        let scorersHtml = '';
+        if (scorers.length > 0) {
+            const scorersText = scorers.map(s => `${s.name}${s.goals > 1 ? ` (${s.goals})` : ''}`).join(', ');
+            scorersHtml = `
+                <div class="flex items-start gap-2 text-xs text-left border-t border-slate-200/50 pt-2">
+                    <span class="font-black text-slate-400 uppercase tracking-wider min-w-[70px]">Goles:</span>
+                    <span class="text-slate-600 font-bold">${scorersText}</span>
+                </div>
+            `;
+        } else if (ourScore > 0) {
+            scorersHtml = `
+                <div class="flex items-start gap-2 text-xs text-left border-t border-slate-200/50 pt-2">
+                    <span class="font-black text-slate-400 uppercase tracking-wider min-w-[70px]">Goles:</span>
+                    <span class="text-slate-400 italic font-medium">Sin goleadores registrados</span>
+                </div>
+            `;
+        }
+
+        // Format assistants text
+        let assistantsHtml = '';
+        if (assistants.length > 0) {
+            const assistantsText = assistants.map(a => `${a.name}${a.assists > 1 ? ` (${a.assists})` : ''}`).join(', ');
+            assistantsHtml = `
+                <div class="flex items-start gap-2 text-xs text-left border-t border-slate-200/50 pt-2">
+                    <span class="font-black text-slate-400 uppercase tracking-wider min-w-[70px]">Asists:</span>
+                    <span class="text-slate-600 font-bold">${assistantsText}</span>
+                </div>
+            `;
+        }
+
+        // Date text formatting
+        const dateText = activeMatch.date || '';
+
+        lastMatchCard.innerHTML = `
+            <div class="flex flex-col items-center">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Jornada ${activeMatch.matchday || '?'}</span>
+                <div class="flex items-center justify-center gap-3 w-full my-1">
+                    <span class="font-black text-slate-700 text-sm text-right flex-1 truncate">Platges de Moncofa</span>
+                    <span class="font-black text-2xl text-slate-800 bg-white border border-slate-100 rounded-lg px-2 py-0.5 shadow-sm">${ourScore}</span>
+                    <span class="text-xs font-bold text-slate-400">-</span>
+                    <span class="font-black text-2xl text-slate-800 bg-white border border-slate-100 rounded-lg px-2 py-0.5 shadow-sm">${rivalScore}</span>
+                    <span class="font-bold text-slate-600 text-sm text-left flex-1 truncate">${activeMatch.rival_name}</span>
+                </div>
+                <div class="flex items-center gap-2 mt-1">
+                    <span class="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${statusColor}">${statusText}</span>
+                    ${dateText ? `<span class="text-[10px] text-slate-400 font-medium">${dateText}</span>` : ''}
+                </div>
+            </div>
+            
+            ${scorersHtml || assistantsHtml ? `
+                <div class="mt-2 space-y-1.5 bg-white/40 p-3 rounded-xl border border-white/60">
+                    ${scorersHtml}
+                    ${assistantsHtml}
+                </div>
+            ` : ''}
+        `;
     },
 
     // --- RENDER ESTADISTICAS INDIVIDUALES ---
