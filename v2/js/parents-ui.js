@@ -784,7 +784,6 @@ MoncofaParents.UI = {
         document.getElementById('player-modal-assists').textContent = assists;
         document.getElementById('player-modal-minutes').textContent = minutes;
         
-        document.getElementById('player-modal-called').textContent = called;
         document.getElementById('player-modal-played').textContent = played;
         document.getElementById('player-modal-starters').textContent = starters;
         document.getElementById('player-modal-subs').textContent = subs;
