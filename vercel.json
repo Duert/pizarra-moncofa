@@ -7,6 +7,21 @@
       "permanent": false
     },
     {
+      "source": "/padresymadres",
+      "destination": "/v2/parents.html",
+      "permanent": false
+    },
+    {
+      "source": "/padres-y-madres",
+      "destination": "/v2/parents.html",
+      "permanent": false
+    },
+    {
+      "source": "/familias",
+      "destination": "/v2/parents.html",
+      "permanent": false
+    },
+    {
       "source": "/",
       "destination": "/v2/",
       "permanent": false
